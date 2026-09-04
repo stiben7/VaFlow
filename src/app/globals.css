@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Semantic surface tokens.
+
+   Everything in the UI paints with these rather than raw Tailwind greys, so
+   dark mode is one block of overrides below instead of a `dark:` class on
+   every element.
+   --------------------------------------------------------------------------- */
+@theme {
+  --color-canvas: #ffffff;
+  --color-panel: #fafaf9;
+  --color-sunken: #f5f5f4;
+  --color-edge: #e7e5e4;
+  --color-edge-soft: #f0efee;
+  --color-ink: #1c1917;
+  --color-muted: #78716c;
+  --color-faint: #a8a29e;
+  --color-brand: #4f46e5;
+  --color-brand-ink: #4338ca;
+  --color-brand-soft: #eef2ff;
+  --color-danger: #dc2626;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --radius-card: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: #17161a;
+    --color-panel: #121114;
+    --color-sunken: #1e1d21;
+    --color-edge: #2c2a30;
+    --color-edge-soft: #232127;
+    --color-ink: #ececf0;
+    --color-muted: #a1a1aa;
+    --color-faint: #71717a;
+    --color-brand: #818cf8;
+    --color-brand-ink: #a5b4fc;
+    --color-brand-soft: #1e1b4b;
+    --color-danger: #f87171;
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* Thin, unobtrusive scrollbars -- the calendar has three scroll areas side by
+   side and default chrome scrollbars make it look like a spreadsheet. */
+@supports (scrollbar-width: thin) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-edge) transparent;
+  }
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-edge);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-faint);
+  background-clip: content-box;
+}
+
+/* Faint half-hour rule inside each hour row of the time grid. */
+.hour-cell {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(50% - 1px),
+    var(--color-edge-soft) calc(50% - 1px),
+    var(--color-edge-soft) 50%,
+    transparent 50%
+  );
+}
+
+@keyframes vaflow-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: vaflow-pop 120ms ease-out;
+}
+
+/* Nothing inside the calendar should ever start a native text selection or an
+   iOS callout while a drag is in progress. */
+.no-touch-scroll {
+  touch-action: none;
+}
