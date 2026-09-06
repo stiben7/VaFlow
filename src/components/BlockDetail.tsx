@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { accentFor, PRIORITY_META, SERVICE_BADGE } from "@/lib/colors";
+import { accentFor, PRIORITY_META, SERVICE_BADGE_ON } from "@/lib/colors";
 import { PRIORITIES, type Priority } from "@/lib/types";
 import { formatDayLong, formatDuration, formatTime, fromKey } from "@/lib/date";
 import { CloseIcon, TrashIcon, LinkIcon, ClockIcon, PencilIcon } from "./Icons";
@@ -114,7 +114,7 @@ export default function BlockDetail({
               {client.serviceTags.map((t) => (
                 <span
                   key={t}
-                  className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE[t]}`}
+                  className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE_ON}`}
                 >
                   {t}
                 </span>

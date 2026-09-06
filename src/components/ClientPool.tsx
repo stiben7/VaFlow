@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore, readLegacyLocalData } from "@/lib/store";
 import { useDrag, DEFAULT_DURATION } from "@/lib/drag";
-import { accentFor, SERVICE_BADGE } from "@/lib/colors";
+import { accentFor, SERVICE_BADGE_OFF, SERVICE_BADGE_ON } from "@/lib/colors";
 import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
 import { downloadBackup, parseBackup, BackupError } from "@/lib/backup";
 import {
@@ -266,8 +266,8 @@ export default function ClientPool({
                   <button
                     key={t}
                     onClick={() => setServiceFilter(on ? null : t)}
-                    className={`rounded-full px-2 py-[3px] text-[10.5px] font-medium transition-all ${
-                      on ? "bg-brand text-white" : `${SERVICE_BADGE[t]} opacity-70 hover:opacity-100`
+                    className={`rounded-full px-2 py-[3px] text-[10.5px] font-medium transition-colors ${
+                      on ? SERVICE_BADGE_ON : `${SERVICE_BADGE_OFF} hover:text-ink`
                     }`}
                   >
                     {t}
@@ -432,7 +432,7 @@ function PoolCard({
               {client.serviceTags.map((t) => (
                 <span
                   key={t}
-                  className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE[t]}`}
+                  className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE_ON}`}
                 >
                   {t}
                 </span>

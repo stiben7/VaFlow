@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { ACCENTS, SERVICE_BADGE, HEX_RE } from "@/lib/colors";
+import { ACCENTS, SERVICE_BADGE_OFF, SERVICE_BADGE_ON, HEX_RE } from "@/lib/colors";
 import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
 import { CloseIcon } from "./Icons";
 
@@ -151,10 +151,10 @@ export default function ClientDialog({
                     type="button"
                     aria-pressed={on}
                     onClick={() => toggleTag(t)}
-                    className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-all ${
+                    className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
                       on
-                        ? "bg-brand text-white"
-                        : `${SERVICE_BADGE[t]} opacity-70 hover:opacity-100`
+                        ? SERVICE_BADGE_ON
+                        : `${SERVICE_BADGE_OFF} hover:text-ink`
                     }`}
                   >
                     {t}
