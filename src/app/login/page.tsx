@@ -3,7 +3,9 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/client";
-import { isCloud } from "@/lib/config";
+import { GUEST_COOKIE, isSupabaseConfigured } from "@/lib/config";
+
+const GUEST_MAX_AGE = 60 * 60 * 24 * 365; // a year
 
 export default function LoginPage() {
   return (
@@ -21,6 +23,14 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  function continueAsGuest() {
+    // Middleware and the store both read this cookie to keep the visitor in
+    // local mode. A full navigation so middleware sees it on the way in.
+    document.cookie = `${GUEST_COOKIE}=1; path=/; max-age=${GUEST_MAX_AGE}; samesite=lax`;
+    const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/my-week";
+    window.location.href = dest;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -67,7 +77,7 @@ function LoginForm() {
         </div>
 
         <div className="rounded-xl border border-edge bg-canvas p-6 shadow-sm">
-          {!isCloud ? (
+          {!isSupabaseConfigured ? (
             <div className="text-[12.5px] leading-relaxed text-muted">
               This deployment is running in local mode, so there is no sign-in.
               Everything is saved in this browser.{" "}
@@ -133,6 +143,29 @@ function LoginForm() {
                 {status === "sending" ? "Sending..." : "Email me a link"}
               </button>
             </form>
+          )}
+
+          {isSupabaseConfigured && status !== "sent" && (
+            <>
+              <div className="my-4 flex items-center gap-2">
+                <span className="h-px flex-1 bg-edge" />
+                <span className="text-[10.5px] font-medium uppercase tracking-wide text-faint">
+                  or
+                </span>
+                <span className="h-px flex-1 bg-edge" />
+              </div>
+              <button
+                type="button"
+                onClick={continueAsGuest}
+                className="w-full rounded-md border border-edge bg-canvas py-2 text-[13px] font-medium text-ink transition-colors hover:bg-sunken"
+              >
+                Continue as guest
+              </button>
+              <p className="mt-2 text-[11px] leading-snug text-faint">
+                No account. Your clients and schedule stay in this browser only
+                &mdash; you can sign in later to sync them.
+              </p>
+            </>
           )}
         </div>
 

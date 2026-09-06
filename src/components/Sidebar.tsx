@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import { isSupabaseConfigured } from "@/lib/config";
 import { useTheme, type ThemeChoice } from "@/lib/theme";
 import { toKey, weekDays } from "@/lib/date";
 import {
@@ -46,8 +47,11 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   const email = user?.email ?? null;
-  const initials = mode === "cloud" ? initialsFor(email) : "LO";
-  const displayName = mode === "cloud" ? (email ?? "Signed in") : "Local mode";
+  // Guest: no account, but this deployment could give them one.
+  const isGuest = mode === "local" && isSupabaseConfigured;
+  const initials = mode === "cloud" ? initialsFor(email) : isGuest ? "GU" : "LO";
+  const displayName =
+    mode === "cloud" ? (email ?? "Signed in") : isGuest ? "Guest" : "Local mode";
   const displaySub =
     mode === "cloud" ? "Your private workspace" : "Saved in this browser";
 
@@ -257,6 +261,14 @@ export default function Sidebar() {
               Sign out
             </button>
           </form>
+        )}
+        {isGuest && (
+          <Link
+            href="/login"
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-brand/40 bg-brand-soft py-1.5 text-[11.5px] font-medium text-brand-ink transition-colors hover:bg-brand/10"
+          >
+            Sign in to save
+          </Link>
         )}
       </div>
     </aside>

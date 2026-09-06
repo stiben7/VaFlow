@@ -20,7 +20,7 @@ import type {
 } from "./types";
 import { SERVICE_TAGS } from "./types";
 import { getSupabase } from "./supabase/client";
-import { isCloud } from "./config";
+import { isSupabaseConfigured } from "./config";
 import { planMerge, type MergePlan } from "./backup";
 
 const CLIENTS_KEY = "vaflow.clients.v1";
@@ -196,21 +196,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const mode: Mode = isCloud ? "cloud" : "local";
-  const modeRef = useRef<Mode>(mode);
+  // Resolved during boot: "cloud" once a signed-in user is confirmed,
+  // "local" for a guest or a deployment without Supabase.
+  const [mode, setMode] = useState<Mode>("local");
+  const modeRef = useRef<Mode>("local");
   modeRef.current = mode;
 
   // ---- boot -------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
 
+    function loadLocal() {
+      setClients(readLocal<Client[]>(CLIENTS_KEY, []).map(normalizeClient));
+      setBlocks(readLocal<Block[]>(BLOCKS_KEY, []));
+      setMode("local");
+      setReady(true);
+    }
+
     async function boot() {
-      if (!isCloud) {
-        setClients(
-          readLocal<Client[]>(CLIENTS_KEY, []).map(normalizeClient)
-        );
-        setBlocks(readLocal<Block[]>(BLOCKS_KEY, []));
-        setReady(true);
+      if (!isSupabaseConfigured) {
+        loadLocal();
         return;
       }
 
@@ -221,12 +226,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setUser(userData.user);
 
-      // Middleware guarantees a session on protected routes; this is the
-      // belt-and-braces path for a race during sign-out.
+      // No session -> a guest (middleware let them past on the guest cookie),
+      // or a race during sign-out. Either way, run in local mode.
       if (!userData.user) {
-        setReady(true);
+        loadLocal();
         return;
       }
+
+      setMode("cloud");
 
       const [cRes, bRes] = await Promise.all([
         supabase.from("clients").select("*").order("name"),

@@ -1,10 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  GUEST_COOKIE,
   SUPABASE_KEY,
   SUPABASE_URL,
-  isCloud,
   isPublicPath,
+  isSupabaseConfigured,
 } from "@/lib/config";
 
 /**
@@ -23,8 +24,8 @@ import {
  *    or expired cookie cannot walk past this check.
  */
 export async function proxy(request: NextRequest) {
-  // Local mode has no accounts, so there is nothing to gate.
-  if (!isCloud) return NextResponse.next();
+  // No Supabase on this deployment -> no accounts, nothing to gate.
+  if (!isSupabaseConfigured) return NextResponse.next();
 
   let response = NextResponse.next({ request });
 
@@ -50,9 +51,13 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // A visitor who chose "continue as guest" carries this cookie. They get the
+  // same access as a signed-in user; the store keeps their data in the browser.
+  const isGuest = request.cookies.get(GUEST_COOKIE)?.value === "1";
+
   const { pathname } = request.nextUrl;
 
-  if (!user && !isPublicPath(pathname)) {
+  if (!user && !isGuest && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     // Remember where they were headed so sign-in can land them back there.
