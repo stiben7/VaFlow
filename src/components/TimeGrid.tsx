@@ -22,6 +22,53 @@ const GUTTER_W = 58;
 const DAY_H = HOUR_H * 24;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
+// ---- resizable day columns -----------------------------------------------
+// Widths are remembered per column count (1 for day view, 7 for week) so the
+// layout survives navigation and reloads, the way a spreadsheet keeps the
+// widths you set.
+const COLW_KEY = "vaflow.colWidths.v1";
+const MIN_COL = 88;
+
+function readColMap(): Record<string, number[]> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(COLW_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function loadColWidths(count: number): number[] | null {
+  const arr = readColMap()[String(count)];
+  return Array.isArray(arr) &&
+    arr.length === count &&
+    arr.every((n) => typeof n === "number" && n >= MIN_COL)
+    ? arr
+    : null;
+}
+
+function saveColWidths(count: number, widths: number[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    const map = readColMap();
+    map[String(count)] = widths;
+    window.localStorage.setItem(COLW_KEY, JSON.stringify(map));
+  } catch {
+    /* quota / private mode -- not worth interrupting over */
+  }
+}
+
+function clearColWidths(count: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    const map = readColMap();
+    delete map[String(count)];
+    window.localStorage.setItem(COLW_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
+
 type ClipboardData = {
   clientId: string;
   durationMin: number;
@@ -35,8 +82,74 @@ export default function TimeGrid({ days }: { days: Date[] }) {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const colsRef = useRef<HTMLDivElement>(null);
+  const headerColsRef = useRef<HTMLDivElement>(null);
   const daysRef = useRef(days);
   daysRef.current = days;
+
+  // ---- column widths ---------------------------------------------------
+  const colCount = days.length;
+  const [colWidths, setColWidths] = useState<number[] | null>(null);
+  // Read from localStorage after mount (and whenever the column count
+  // changes), so SSR and the first client render agree.
+  useEffect(() => {
+    setColWidths(loadColWidths(colCount));
+  }, [colCount]);
+
+  const colTemplate = colWidths
+    ? colWidths.map((w) => `${w}px`).join(" ")
+    : `repeat(${colCount}, minmax(0, 1fr))`;
+  const contentWidth = colWidths
+    ? GUTTER_W + colWidths.reduce((a, b) => a + b, 0)
+    : undefined;
+
+  const measureCols = useCallback((): number[] => {
+    const el = headerColsRef.current;
+    if (el && el.children.length === colCount) {
+      return Array.from(el.children).map((c) =>
+        Math.round((c as HTMLElement).getBoundingClientRect().width)
+      );
+    }
+    const total = el?.getBoundingClientRect().width ?? colCount * 140;
+    return Array.from({ length: colCount }, () =>
+      Math.max(MIN_COL, Math.round(total / colCount))
+    );
+  }, [colCount]);
+
+  const startColResize = useCallback(
+    (e: React.PointerEvent, index: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const base = (colWidths ?? measureCols()).slice();
+      const startX = e.clientX;
+      const startW = base[index];
+      const onMove = (ev: PointerEvent) => {
+        const next = base.slice();
+        next[index] = Math.max(
+          MIN_COL,
+          Math.round(startW + (ev.clientX - startX))
+        );
+        setColWidths(next);
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        document.body.style.cursor = "";
+        setColWidths((cur) => {
+          if (cur) saveColWidths(colCount, cur);
+          return cur;
+        });
+      };
+      document.body.style.cursor = "col-resize";
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [colWidths, measureCols, colCount]
+  );
+
+  const resetColWidths = useCallback(() => {
+    setColWidths(null);
+    clearColWidths(colCount);
+  }, [colCount]);
 
   // Multi-select. `openId` (the anchored detail card) is just "exactly one
   // block selected" -- clicking a chip, or a marquee that lands on a single
@@ -61,11 +174,12 @@ export default function TimeGrid({ days }: { days: Date[] }) {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();
   });
-  const [scrollbarW, setScrollbarW] = useState(0);
   const clipboardRef = useRef<ClipboardData | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // ---- the drop surface ---------------------------------------------------
+  // Columns can be resized, so measure each one rather than assuming an even
+  // split.
   const hitTest = useCallback((x: number, y: number): Hit | null => {
     const el = colsRef.current;
     if (!el) return null;
@@ -73,9 +187,12 @@ export default function TimeGrid({ days }: { days: Date[] }) {
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
       return null;
     }
-    const cols = daysRef.current.length;
-    const colW = rect.width / cols;
-    const idx = clamp(Math.floor((x - rect.left) / colW), 0, cols - 1);
+    const cols = Array.from(el.children) as HTMLElement[];
+    let idx = cols.findIndex((c) => {
+      const r = c.getBoundingClientRect();
+      return x >= r.left && x < r.right;
+    });
+    if (idx < 0) idx = x <= rect.left + 1 ? 0 : cols.length - 1;
     const rawMin = ((y - rect.top) / rect.height) * 1440;
     return { date: toKey(daysRef.current[idx]), rawMin };
   }, []);
@@ -114,17 +231,6 @@ export default function TimeGrid({ days }: { days: Date[] }) {
       setNowMin(d.getHours() * 60 + d.getMinutes());
     }, 60_000);
     return () => clearInterval(id);
-  }, []);
-
-  // ---- scrollbar width measurement (keeps header aligned with grid) ------
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const measure = () => setScrollbarW(el.offsetWidth - el.clientWidth);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
   }, []);
 
   // ---- toast auto-dismiss ------------------------------------------------
@@ -342,98 +448,109 @@ export default function TimeGrid({ days }: { days: Date[] }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* ---- day header ---------------------------------------------------- */}
-      <div
-        className="flex shrink-0 border-b border-edge bg-canvas"
-        style={{ paddingRight: scrollbarW }}
-      >
-        <div className="shrink-0" style={{ width: GUTTER_W }} />
-        <div
-          className="grid flex-1"
-          style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0,1fr))` }}
-        >
-          {days.map((d) => {
-            const dayBlocks = byDate.get(toKey(d)) ?? [];
-            const mins = totalMinutes(dayBlocks);
-            const today = isToday(d);
-            return (
-              <div
-                key={toKey(d)}
-                className={`flex items-center gap-2 border-l border-edge px-2.5 py-2 ${
-                  isWeekend(d) ? "bg-panel/60" : ""
-                }`}
-              >
-                <div className="flex items-baseline gap-1.5">
-                  <span
-                    className={`text-[11px] font-medium uppercase tracking-wide ${
-                      today ? "text-brand" : "text-faint"
-                    }`}
-                  >
-                    {DAY_LABELS[(d.getDay() + 6) % 7]}
-                  </span>
-                  <span
-                    className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[13px] font-semibold tabular-nums ${
-                      today ? "bg-brand text-white" : "text-ink"
-                    }`}
-                  >
-                    {d.getDate()}
-                  </span>
-                </div>
-                {dayBlocks.length > 0 && (
-                  <span
-                    className="ml-auto shrink-0 rounded-full bg-sunken px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted"
-                    title={`${dayBlocks.length} accounts, ${formatDuration(mins)} booked`}
-                  >
-                    {single
-                      ? `${dayBlocks.length} accounts / ${formatDuration(mins)}`
-                      : formatDuration(mins)}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ---- scrollable body ----------------------------------------------- */}
+      {/* One scroll box for the whole grid: it scrolls vertically through the
+          day, and horizontally once the columns are wider than the viewport.
+          The header sticks to the top, the hour gutter sticks to the left. */}
       <div
         ref={scrollRef}
         data-grid-scroll
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="min-h-0 flex-1 overflow-auto"
       >
-        <div className="flex">
-          {/* hour gutter */}
-          <div
-            className="relative shrink-0 select-none"
-            style={{ width: GUTTER_W, height: DAY_H }}
-          >
-            {HOURS.map((h) => (
-              <div
-                key={h}
-                className="relative"
-                style={{ height: HOUR_H }}
-                aria-hidden={h === 0}
-              >
-                {h > 0 && (
-                  <span className="absolute right-2 -top-[7px] text-[10.5px] font-medium tabular-nums text-faint">
-                    {formatTime(h * 60, { compact: true })}
-                  </span>
-                )}
-              </div>
-            ))}
+        <div style={{ width: contentWidth, minWidth: "100%" }}>
+          {/* ---- day header (sticky) ------------------------------------- */}
+          <div className="sticky top-0 z-30 flex border-b border-edge bg-canvas">
+            <div
+              className="sticky left-0 z-40 shrink-0 bg-canvas"
+              style={{ width: GUTTER_W }}
+            />
+            <div
+              ref={headerColsRef}
+              className="grid flex-1"
+              style={{ gridTemplateColumns: colTemplate }}
+            >
+              {days.map((d, i) => {
+                const dayBlocks = byDate.get(toKey(d)) ?? [];
+                const mins = totalMinutes(dayBlocks);
+                const today = isToday(d);
+                return (
+                  <div
+                    key={toKey(d)}
+                    className={`relative flex items-center gap-1.5 border-l border-edge px-2 py-2 ${
+                      isWeekend(d) ? "bg-panel/60" : ""
+                    }`}
+                  >
+                    <div className="flex shrink-0 items-baseline gap-1.5">
+                      <span
+                        className={`text-[11px] font-medium uppercase tracking-wide ${
+                          today ? "text-brand" : "text-faint"
+                        }`}
+                      >
+                        {DAY_LABELS[(d.getDay() + 6) % 7]}
+                      </span>
+                      <span
+                        className={`grid h-6 min-w-6 place-items-center rounded-full px-1 text-[13px] font-semibold tabular-nums ${
+                          today ? "bg-brand text-white" : "text-ink"
+                        }`}
+                      >
+                        {d.getDate()}
+                      </span>
+                    </div>
+                    {dayBlocks.length > 0 && (
+                      <span
+                        className="ml-auto min-w-0 truncate rounded-full bg-sunken px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted"
+                        title={`${dayBlocks.length} accounts, ${formatDuration(mins)} booked`}
+                      >
+                        {single
+                          ? `${dayBlocks.length} accounts / ${formatDuration(mins)}`
+                          : formatDuration(mins)}
+                      </span>
+                    )}
+                    {/* drag to resize this column; double-click to reset all */}
+                    <div
+                      onPointerDown={(e) => startColResize(e, i)}
+                      onDoubleClick={resetColWidths}
+                      title="Drag to resize -- double-click to reset"
+                      className="absolute right-0 top-0 z-20 h-full w-2 cursor-col-resize touch-none hover:bg-brand/25"
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* day columns */}
-          <div
-            ref={colsRef}
-            onPointerDown={onMarqueeDown}
-            className="relative grid flex-1"
-            style={{
-              gridTemplateColumns: `repeat(${days.length}, minmax(0,1fr))`,
-              height: DAY_H,
-            }}
-          >
-            {days.map((d) => {
+          <div className="flex">
+            {/* hour gutter (sticky) */}
+            <div
+              className="sticky left-0 z-20 shrink-0 select-none bg-canvas"
+              style={{ width: GUTTER_W, height: DAY_H }}
+            >
+              {HOURS.map((h) => (
+                <div
+                  key={h}
+                  className="relative"
+                  style={{ height: HOUR_H }}
+                  aria-hidden={h === 0}
+                >
+                  {h > 0 && (
+                    <span className="absolute right-2 -top-[7px] text-[10.5px] font-medium tabular-nums text-faint">
+                      {formatTime(h * 60, { compact: true })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* day columns */}
+            <div
+              ref={colsRef}
+              onPointerDown={onMarqueeDown}
+              className="relative grid flex-1"
+              style={{
+                gridTemplateColumns: colTemplate,
+                height: DAY_H,
+              }}
+            >
+              {days.map((d) => {
               const key = toKey(d);
               const placed = layoutDay(byDate.get(key) ?? []);
               const today = isToday(d);
@@ -561,6 +678,7 @@ export default function TimeGrid({ days }: { days: Date[] }) {
                 }}
               />
             )}
+            </div>
           </div>
         </div>
       </div>
