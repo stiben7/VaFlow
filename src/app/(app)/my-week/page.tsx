@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import { isSupabaseConfigured } from "@/lib/config";
 import type { CalendarView } from "@/lib/types";
 import {
   addDays,
@@ -134,7 +135,9 @@ export default function MyWeekPage() {
       <div className="shrink-0 border-t border-edge bg-panel px-4 py-1 text-[10.5px] text-faint">
         {mode === "cloud"
           ? "Synced to your account. Private to you."
-          : "Local mode -- saved in this browser only. Add the Supabase env vars to enable accounts."}
+          : isSupabaseConfigured
+            ? "Guest mode -- saved in this browser only. Sign in to sync to an account."
+            : "Local mode -- saved in this browser only. Add the Supabase env vars to enable accounts."}
       </div>
     </>
   );

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SUPABASE_KEY, SUPABASE_URL, isCloud } from "../config";
+import { SUPABASE_KEY, SUPABASE_URL, isSupabaseConfigured } from "../config";
 
 /**
  * Server-side client for Server Components and Route Handlers.
@@ -10,7 +10,7 @@ import { SUPABASE_KEY, SUPABASE_URL, isCloud } from "../config";
  * user's session into another request.
  */
 export async function getServerSupabase(): Promise<SupabaseClient | null> {
-  if (!isCloud) return null;
+  if (!isSupabaseConfigured) return null;
   const store = await cookies();
 
   return createServerClient(SUPABASE_URL, SUPABASE_KEY, {
