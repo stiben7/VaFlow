@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
-import { accentFor, SERVICE_BADGE } from "@/lib/colors";
+import { accentFor, SERVICE_BADGE_OFF, SERVICE_BADGE_ON } from "@/lib/colors";
 import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
 import ClientDialog from "@/components/ClientDialog";
 import {
@@ -114,10 +114,10 @@ export default function ClientsPage() {
             <button
               key={t}
               onClick={() => setService(service === t ? null : t)}
-              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
                 service === t
-                  ? "bg-brand text-white"
-                  : `${SERVICE_BADGE[t]} opacity-75 hover:opacity-100`
+                  ? SERVICE_BADGE_ON
+                  : `${SERVICE_BADGE_OFF} hover:text-ink`
               }`}
             >
               {t}
@@ -254,7 +254,7 @@ function ClientRow({
             {client.serviceTags.map((t) => (
               <span
                 key={t}
-                className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE[t]}`}
+                className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE_ON}`}
               >
                 {t}
               </span>

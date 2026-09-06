@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { ServiceTag, Priority } from "./types";
+import type { Priority } from "./types";
 
 /**
  * Eight muted accents. Each client gets one permanently (colorKey), the way
@@ -119,18 +119,14 @@ export function accentFor(
 }
 
 /**
- * Availed-service badge styling -- one muted colour per service so the tags
- * stay legible when several sit in a row.
+ * Availed-service tags. No per-service colour: a tag is a plain outlined chip
+ * by default, and picks up a light green wash only when it is selected /
+ * availed.
  */
-export const SERVICE_BADGE: Record<ServiceTag, string> = {
-  Admin: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-  Website:
-    "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
-  Automation:
-    "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  General: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
-  GHL: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-};
+export const SERVICE_BADGE_OFF =
+  "border border-edge bg-canvas text-muted";
+export const SERVICE_BADGE_ON =
+  "border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300";
 
 export const PRIORITY_META: Record<
   Priority,
