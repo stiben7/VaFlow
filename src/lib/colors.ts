@@ -126,7 +126,7 @@ export function accentFor(
 export const SERVICE_BADGE_OFF =
   "border border-edge bg-canvas text-muted";
 export const SERVICE_BADGE_ON =
-  "border border-[#ccffce] bg-[#ccffce] text-white";
+  "border border-[#ccffce] bg-[#ccffce] text-black";
 
 export const PRIORITY_META: Record<
   Priority,
