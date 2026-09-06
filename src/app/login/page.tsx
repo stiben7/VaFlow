@@ -6,6 +6,7 @@ import { getSupabase } from "@/lib/supabase/client";
 import { GUEST_COOKIE, isSupabaseConfigured } from "@/lib/config";
 
 const GUEST_MAX_AGE = 60 * 60 * 24 * 365; // a year
+const MIN_PASSWORD = 6; // Supabase's default floor
 
 export default function LoginPage() {
   return (
@@ -15,20 +16,26 @@ export default function LoginPage() {
   );
 }
 
+type Mode = "signin" | "signup";
+
 function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") ?? "/my-week";
   const linkError = params.get("error");
 
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/my-week";
 
   function continueAsGuest() {
     // Middleware and the store both read this cookie to keep the visitor in
     // local mode. A full navigation so middleware sees it on the way in.
     document.cookie = `${GUEST_COOKIE}=1; path=/; max-age=${GUEST_MAX_AGE}; samesite=lax`;
-    const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/my-week";
     window.location.href = dest;
   }
 
@@ -40,23 +47,51 @@ function LoginForm() {
       return;
     }
 
-    setStatus("sending");
-    setError(null);
-
-    const redirect = new URL("/auth/confirm", window.location.origin);
-    redirect.searchParams.set("next", next);
-
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: redirect.toString() },
-    });
-
-    if (err) {
-      setError(err.message);
-      setStatus("idle");
+    const mail = email.trim();
+    if (mode === "signup" && password.length < MIN_PASSWORD) {
+      setError(`Password must be at least ${MIN_PASSWORD} characters.`);
       return;
     }
-    setStatus("sent");
+
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+
+    if (mode === "signup") {
+      const { data, error: err } = await supabase.auth.signUp({
+        email: mail,
+        password,
+      });
+      if (err) {
+        setError(err.message);
+        setBusy(false);
+        return;
+      }
+      // With email confirmation off, sign-up returns a live session and we can
+      // go straight in. If it is ever turned on, there is no session yet.
+      if (!data.session) {
+        setNotice(
+          "Account created. Check your email to confirm it, then sign in."
+        );
+        setMode("signin");
+        setPassword("");
+        setBusy(false);
+        return;
+      }
+    } else {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: mail,
+        password,
+      });
+      if (err) {
+        setError(err.message);
+        setBusy(false);
+        return;
+      }
+    }
+
+    // Session cookies are set. Full navigation so the middleware sees them.
+    window.location.href = dest;
   }
 
   return (
@@ -86,67 +121,114 @@ function LoginForm() {
               </a>
               .
             </div>
-          ) : status === "sent" ? (
-            <div>
-              <h1 className="text-[14px] font-semibold text-ink">
-                Check your email
-              </h1>
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
-                We sent a sign-in link to{" "}
-                <span className="font-medium text-ink">{email}</span>. Open it on
-                this device and you&apos;ll land straight in your week.
-              </p>
-              <button
-                onClick={() => {
-                  setStatus("idle");
-                  setEmail("");
-                }}
-                className="mt-4 text-[12.5px] font-medium text-brand hover:underline"
-              >
-                Use a different email
-              </button>
-            </div>
           ) : (
-            <form onSubmit={submit}>
-              <h1 className="text-[14px] font-semibold text-ink">Sign in</h1>
-              <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
-                We&apos;ll email you a link. No password to remember.
+            <>
+              <form onSubmit={submit}>
+                <h1 className="text-[14px] font-semibold text-ink">
+                  {mode === "signup" ? "Create your account" : "Sign in"}
+                </h1>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
+                  {mode === "signup"
+                    ? "Your clients and schedule are saved to your account."
+                    : "Welcome back."}
+                </p>
+
+                <label className="mt-4 block">
+                  <span className="mb-1 block text-[11.5px] font-medium text-muted">
+                    Email
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    autoFocus
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    className="w-full rounded-md border border-edge bg-canvas px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
+                  />
+                </label>
+
+                <label className="mt-3 block">
+                  <span className="mb-1 block text-[11.5px] font-medium text-muted">
+                    Password
+                  </span>
+                  <input
+                    type="password"
+                    required
+                    minLength={MIN_PASSWORD}
+                    autoComplete={
+                      mode === "signup" ? "new-password" : "current-password"
+                    }
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={
+                      mode === "signup"
+                        ? `At least ${MIN_PASSWORD} characters`
+                        : "Your password"
+                    }
+                    className="w-full rounded-md border border-edge bg-canvas px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
+                  />
+                </label>
+
+                {(error || linkError) && (
+                  <p className="mt-2 text-[11.5px] leading-snug text-danger">
+                    {error ?? linkError}
+                  </p>
+                )}
+                {notice && (
+                  <p className="mt-2 text-[11.5px] leading-snug text-muted">
+                    {notice}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={busy || !email.trim() || !password}
+                  className="mt-4 w-full rounded-md bg-brand py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {busy
+                    ? "Working..."
+                    : mode === "signup"
+                      ? "Create account"
+                      : "Sign in"}
+                </button>
+              </form>
+
+              <p className="mt-3 text-center text-[12px] text-muted">
+                {mode === "signup" ? (
+                  <>
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("signin");
+                        setError(null);
+                        setNotice(null);
+                      }}
+                      className="font-medium text-brand hover:underline"
+                    >
+                      Sign in
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    New here?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("signup");
+                        setError(null);
+                        setNotice(null);
+                      }}
+                      className="font-medium text-brand hover:underline"
+                    >
+                      Create an account
+                    </button>
+                  </>
+                )}
               </p>
 
-              <label className="mt-4 block">
-                <span className="mb-1 block text-[11.5px] font-medium text-muted">
-                  Email
-                </span>
-                <input
-                  type="email"
-                  required
-                  autoFocus
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="w-full rounded-md border border-edge bg-canvas px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
-                />
-              </label>
-
-              {(error || linkError) && (
-                <p className="mt-2 text-[11.5px] leading-snug text-danger">
-                  {error ?? linkError}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={status === "sending" || !email.trim()}
-                className="mt-4 w-full rounded-md bg-brand py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {status === "sending" ? "Sending..." : "Email me a link"}
-              </button>
-            </form>
-          )}
-
-          {isSupabaseConfigured && status !== "sent" && (
-            <>
               <div className="my-4 flex items-center gap-2">
                 <span className="h-px flex-1 bg-edge" />
                 <span className="text-[10.5px] font-medium uppercase tracking-wide text-faint">
