@@ -1,0 +1,406 @@
+"use client";
+
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { User } from "@supabase/supabase-js";
+import type { Block, Client, NewBlock, NewClient, Tier, Priority } from "./types";
+import { SEED_CLIENTS } from "./seed";
+import { getSupabase } from "./supabase/client";
+import { isCloud } from "./config";
+import { planMerge, type MergePlan } from "./backup";
+
+const CLIENTS_KEY = "vaflow.clients.v1";
+const BLOCKS_KEY = "vaflow.blocks.v1";
+
+type Mode = "local" | "cloud";
+
+export function uid(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ---------------------------------------------------------------------------
+// localStorage helpers (local mode only)
+// ---------------------------------------------------------------------------
+function readLocal<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocal(key: string, value: unknown): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Quota or private-mode failures are not worth interrupting the user over.
+  }
+}
+
+/** Anything left in this browser from before the Supabase switch. */
+export function readLegacyLocalData(): { clients: Client[]; blocks: Block[] } | null {
+  if (typeof window === "undefined") return null;
+  const clients = readLocal<Client[]>(CLIENTS_KEY, []);
+  const blocks = readLocal<Block[]>(BLOCKS_KEY, []);
+  if (clients.length === 0 && blocks.length === 0) return null;
+  return { clients, blocks };
+}
+
+// ---------------------------------------------------------------------------
+// row <-> model mapping
+// ---------------------------------------------------------------------------
+type ClientRow = {
+  id: string; name: string; tier: string; services: string;
+  strategist: string | null; basecamp_url: string | null;
+  color_key: number; archived: boolean;
+};
+
+type BlockRow = {
+  id: string; client_id: string; day: string;
+  start_min: number; duration_min: number;
+  priority: string; note: string | null;
+};
+
+const toClient = (r: ClientRow): Client => ({
+  id: r.id,
+  name: r.name,
+  tier: r.tier as Tier,
+  services: r.services ?? "",
+  strategist: r.strategist,
+  basecampUrl: r.basecamp_url,
+  colorKey: Number(r.color_key),
+  archived: Boolean(r.archived),
+});
+
+const fromClient = (c: Client) => ({
+  id: c.id,
+  name: c.name,
+  tier: c.tier,
+  services: c.services,
+  strategist: c.strategist,
+  basecamp_url: c.basecampUrl,
+  color_key: c.colorKey,
+  archived: c.archived,
+});
+
+const toBlock = (r: BlockRow): Block => ({
+  id: r.id,
+  clientId: r.client_id,
+  date: String(r.day).slice(0, 10),
+  startMin: Number(r.start_min),
+  durationMin: Number(r.duration_min),
+  priority: r.priority as Priority,
+  note: r.note,
+});
+
+const fromBlock = (b: Block) => ({
+  id: b.id,
+  client_id: b.clientId,
+  day: b.date,
+  start_min: b.startMin,
+  duration_min: b.durationMin,
+  priority: b.priority,
+  note: b.note,
+});
+
+/** Next free accent, so colours spread out instead of clumping. */
+function nextColorKey(clients: Client[]): number {
+  const counts = new Array(8).fill(0);
+  for (const c of clients) counts[((c.colorKey % 8) + 8) % 8] += 1;
+  let best = 0;
+  for (let i = 1; i < 8; i += 1) if (counts[i] < counts[best]) best = i;
+  return best;
+}
+
+const byName = (a: Client, b: Client) => a.name.localeCompare(b.name);
+
+// ---------------------------------------------------------------------------
+// store
+// ---------------------------------------------------------------------------
+type Store = {
+  clients: Client[];
+  blocks: Block[];
+  ready: boolean;
+  mode: Mode;
+  user: User | null;
+  error: string | null;
+
+  addClient: (input: NewClient) => Promise<Client>;
+  editClient: (id: string, patch: Partial<NewClient>) => Promise<void>;
+  removeClient: (id: string) => Promise<void>;
+
+  addBlock: (input: NewBlock) => Promise<Block>;
+  editBlock: (id: string, patch: Partial<NewBlock>) => Promise<void>;
+  removeBlock: (id: string) => Promise<void>;
+
+  clientById: (id: string) => Client | undefined;
+  /** Bulk insert used by import and by "load the sample roster". */
+  importData: (incoming: { clients: Client[]; blocks: Block[] }) => Promise<MergePlan>;
+  loadSampleRoster: () => Promise<MergePlan>;
+};
+
+const StoreContext = createContext<Store | null>(null);
+
+export function useStore(): Store {
+  const ctx = useContext(StoreContext);
+  if (!ctx) throw new Error("useStore must be used inside <DataProvider>.");
+  return ctx;
+}
+
+export function DataProvider({ children }: { children: React.ReactNode }) {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const mode: Mode = isCloud ? "cloud" : "local";
+  const modeRef = useRef<Mode>(mode);
+  modeRef.current = mode;
+
+  // ---- boot -------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    async function boot() {
+      if (!isCloud) {
+        setClients(readLocal<Client[]>(CLIENTS_KEY, SEED_CLIENTS));
+        setBlocks(readLocal<Block[]>(BLOCKS_KEY, []));
+        setReady(true);
+        return;
+      }
+
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      const { data: userData } = await supabase.auth.getUser();
+      if (cancelled) return;
+      setUser(userData.user);
+
+      // Middleware guarantees a session on protected routes; this is the
+      // belt-and-braces path for a race during sign-out.
+      if (!userData.user) {
+        setReady(true);
+        return;
+      }
+
+      const [cRes, bRes] = await Promise.all([
+        supabase.from("clients").select("*").order("name"),
+        supabase.from("blocks").select("*"),
+      ]);
+      if (cancelled) return;
+
+      if (cRes.error || bRes.error) {
+        setError(
+          cRes.error?.message ??
+            bRes.error?.message ??
+            "Could not load your data."
+        );
+        setReady(true);
+        return;
+      }
+
+      setClients((cRes.data as ClientRow[]).map(toClient));
+      setBlocks((bRes.data as BlockRow[]).map(toBlock));
+      setReady(true);
+    }
+
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ---- local persistence -------------------------------------------------
+  useEffect(() => {
+    if (ready && mode === "local") writeLocal(CLIENTS_KEY, clients);
+  }, [clients, ready, mode]);
+
+  useEffect(() => {
+    if (ready && mode === "local") writeLocal(BLOCKS_KEY, blocks);
+  }, [blocks, ready, mode]);
+
+  // ---- clients -----------------------------------------------------------
+  const addClient = useCallback(
+    async (input: NewClient): Promise<Client> => {
+      const record: Client = {
+        id: uid("cl"),
+        name: input.name,
+        tier: input.tier,
+        services: input.services ?? "",
+        strategist: input.strategist ?? null,
+        basecampUrl: input.basecampUrl ?? null,
+        colorKey: input.colorKey ?? nextColorKey(clients),
+        archived: false,
+      };
+      setClients((prev) => [...prev, record].sort(byName));
+
+      if (modeRef.current === "cloud") {
+        const supabase = getSupabase();
+        // user_id is filled by the column default (auth.uid()), and RLS
+        // rejects the row if it would belong to anyone else.
+        const { error: err } = await supabase!
+          .from("clients")
+          .insert(fromClient(record));
+        if (err) {
+          setError(err.message);
+          setClients((prev) => prev.filter((c) => c.id !== record.id));
+          throw new Error(err.message);
+        }
+      }
+      return record;
+    },
+    [clients]
+  );
+
+  const editClient = useCallback(async (id: string, patch: Partial<NewClient>) => {
+    setClients((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...patch } : c)).sort(byName)
+    );
+    if (modeRef.current === "cloud") {
+      const row: Record<string, unknown> = {};
+      if (patch.name !== undefined) row.name = patch.name;
+      if (patch.tier !== undefined) row.tier = patch.tier;
+      if (patch.services !== undefined) row.services = patch.services;
+      if (patch.strategist !== undefined) row.strategist = patch.strategist;
+      if (patch.basecampUrl !== undefined) row.basecamp_url = patch.basecampUrl;
+      if (patch.colorKey !== undefined) row.color_key = patch.colorKey;
+      if (patch.archived !== undefined) row.archived = patch.archived;
+      const { error: err } = await getSupabase()!
+        .from("clients").update(row).eq("id", id);
+      if (err) setError(err.message);
+    }
+  }, []);
+
+  const removeClient = useCallback(async (id: string) => {
+    setClients((prev) => prev.filter((c) => c.id !== id));
+    setBlocks((prev) => prev.filter((b) => b.clientId !== id));
+    if (modeRef.current === "cloud") {
+      // blocks go too, via ON DELETE CASCADE.
+      const { error: err } = await getSupabase()!
+        .from("clients").delete().eq("id", id);
+      if (err) setError(err.message);
+    }
+  }, []);
+
+  // ---- blocks ------------------------------------------------------------
+  const addBlock = useCallback(async (input: NewBlock): Promise<Block> => {
+    const record: Block = { id: uid("bl"), ...input };
+    setBlocks((prev) => [...prev, record]);
+
+    if (modeRef.current === "cloud") {
+      const { error: err } = await getSupabase()!
+        .from("blocks").insert(fromBlock(record));
+      if (err) {
+        setError(err.message);
+        setBlocks((prev) => prev.filter((b) => b.id !== record.id));
+        throw new Error(err.message);
+      }
+    }
+    return record;
+  }, []);
+
+  const editBlock = useCallback(async (id: string, patch: Partial<NewBlock>) => {
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    if (modeRef.current === "cloud") {
+      const row: Record<string, unknown> = {};
+      if (patch.date !== undefined) row.day = patch.date;
+      if (patch.startMin !== undefined) row.start_min = patch.startMin;
+      if (patch.durationMin !== undefined) row.duration_min = patch.durationMin;
+      if (patch.priority !== undefined) row.priority = patch.priority;
+      if (patch.note !== undefined) row.note = patch.note;
+      const { error: err } = await getSupabase()!
+        .from("blocks").update(row).eq("id", id);
+      if (err) setError(err.message);
+    }
+  }, []);
+
+  const removeBlock = useCallback(async (id: string) => {
+    setBlocks((prev) => prev.filter((b) => b.id !== id));
+    if (modeRef.current === "cloud") {
+      const { error: err } = await getSupabase()!
+        .from("blocks").delete().eq("id", id);
+      if (err) setError(err.message);
+    }
+  }, []);
+
+  // ---- bulk --------------------------------------------------------------
+  const importData = useCallback(
+    async (incoming: { clients: Client[]; blocks: Block[] }): Promise<MergePlan> => {
+      const plan = planMerge(clients, incoming, uid);
+
+      if (modeRef.current === "cloud") {
+        const supabase = getSupabase()!;
+        if (plan.newClients.length) {
+          const { error: err } = await supabase
+            .from("clients")
+            .insert(plan.newClients.map(fromClient));
+          if (err) {
+            setError(err.message);
+            throw new Error(err.message);
+          }
+        }
+        if (plan.newBlocks.length) {
+          const { error: err } = await supabase
+            .from("blocks")
+            .insert(plan.newBlocks.map(fromBlock));
+          if (err) {
+            setError(err.message);
+            throw new Error(err.message);
+          }
+        }
+      }
+
+      // Only touch local state once the write has actually succeeded, so a
+      // failed import does not leave phantom rows on screen.
+      if (plan.newClients.length) {
+        setClients((prev) => [...prev, ...plan.newClients].sort(byName));
+      }
+      if (plan.newBlocks.length) {
+        setBlocks((prev) => [...prev, ...plan.newBlocks]);
+      }
+      return plan;
+    },
+    [clients]
+  );
+
+  const loadSampleRoster = useCallback(
+    () => importData({ clients: SEED_CLIENTS, blocks: [] }),
+    [importData]
+  );
+
+  const byId = useMemo(() => {
+    const m = new Map<string, Client>();
+    for (const c of clients) m.set(c.id, c);
+    return m;
+  }, [clients]);
+
+  const clientById = useCallback((id: string) => byId.get(id), [byId]);
+
+  const value = useMemo<Store>(
+    () => ({
+      clients, blocks, ready, mode, user, error,
+      addClient, editClient, removeClient,
+      addBlock, editBlock, removeBlock,
+      clientById, importData, loadSampleRoster,
+    }),
+    [
+      clients, blocks, ready, mode, user, error,
+      addClient, editClient, removeClient,
+      addBlock, editBlock, removeBlock,
+      clientById, importData, loadSampleRoster,
+    ]
+  );
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+}
