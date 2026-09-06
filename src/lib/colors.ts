@@ -1,4 +1,5 @@
-import type { Tier, Priority } from "./types";
+import type { CSSProperties } from "react";
+import type { ServiceTag, Priority } from "./types";
 
 /**
  * Eight muted accents. Each client gets one permanently (colorKey), the way
@@ -6,7 +7,8 @@ import type { Tier, Priority } from "./types";
  * its colour before you read the name.
  *
  * Every value is a literal Tailwind class string, not a template, so the
- * Tailwind scanner can see them.
+ * Tailwind scanner can see them. A client may instead carry a custom hex
+ * `color`; see `accentFor` and the `.accent-custom*` rules in globals.css.
  */
 export type Accent = {
   /** Card surface in the pool + calendar. */
@@ -19,7 +21,15 @@ export type Accent = {
   text: string;
   /** Ring shown while a card is being dragged or is selected. */
   ring: string;
+  /**
+   * Only set for a custom hex colour: put this on whichever element carries
+   * the accent classes above (or their common ancestor), so the CSS vars
+   * cascade down.
+   */
+  style?: CSSProperties;
 };
+
+export const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 export const ACCENTS: Accent[] = [
   {
@@ -80,34 +90,46 @@ export const ACCENTS: Accent[] = [
   },
 ];
 
-export function accentFor(colorKey: number): Accent {
-  return ACCENTS[((colorKey % ACCENTS.length) + ACCENTS.length) % ACCENTS.length];
+const CUSTOM_ACCENT: Accent = {
+  chip: "accent-custom",
+  bar: "accent-custom-bar",
+  dot: "accent-custom-dot",
+  text: "accent-custom-text",
+  ring: "accent-custom-ring",
+};
+
+/**
+ * The accent for a client. Pass the whole client (or a `{ colorKey, color }`
+ * pair): a valid custom hex wins, otherwise it falls back to the preset at
+ * `colorKey`. A bare number is still accepted for callers that only have one.
+ */
+export function accentFor(
+  input: number | { colorKey: number; color?: string | null }
+): Accent {
+  if (typeof input === "number") {
+    return ACCENTS[((input % ACCENTS.length) + ACCENTS.length) % ACCENTS.length];
+  }
+  if (input.color && HEX_RE.test(input.color)) {
+    const style = { "--accent": input.color } as CSSProperties;
+    return { ...CUSTOM_ACCENT, style };
+  }
+  return ACCENTS[
+    ((input.colorKey % ACCENTS.length) + ACCENTS.length) % ACCENTS.length
+  ];
 }
 
 /**
- * Tier badge styling. Tier is a proxy for workload -- Peak Performance clients
- * need four content pieces a month, Foundation needs one -- so it earns a
- * visual weight of its own, separate from the per-client colour.
+ * Availed-service badge styling -- one muted colour per service so the tags
+ * stay legible when several sit in a row.
  */
-export const TIER_BADGE: Record<Tier, string> = {
-  Foundation:
-    "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-  "Accelerated Growth":
+export const SERVICE_BADGE: Record<ServiceTag, string> = {
+  Admin: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  Website:
     "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
-  "Peak Performance":
+  Automation:
     "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  "Paid Ads Only":
-    "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
-  Custom: "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300",
-};
-
-/** Short label used where horizontal space is tight. */
-export const TIER_SHORT: Record<Tier, string> = {
-  Foundation: "Foundation",
-  "Accelerated Growth": "Accelerated",
-  "Peak Performance": "Peak",
-  "Paid Ads Only": "Ads only",
-  Custom: "Custom",
+  General: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
+  GHL: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
 };
 
 export const PRIORITY_META: Record<

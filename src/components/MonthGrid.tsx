@@ -127,7 +127,7 @@ export default function MonthGrid({
                 {visible.map((b) => {
                   const c = clientById(b.clientId);
                   if (!c) return null;
-                  const accent = accentFor(c.colorKey);
+                  const accent = accentFor(c);
                   return (
                     <div
                       key={b.id}
@@ -143,6 +143,7 @@ export default function MonthGrid({
                         )
                       }
                       title={`${c.name} -- ${formatTime(b.startMin)}`}
+                      style={accent.style}
                       className={`no-touch-scroll flex cursor-grab items-center gap-1 overflow-hidden rounded border px-1 py-[2px] active:cursor-grabbing ${accent.chip} ${
                         movingId === b.id ? "opacity-30" : "hover:brightness-95"
                       }`}

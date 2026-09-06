@@ -10,8 +10,15 @@ import React, {
   useState,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import type { Block, Client, NewBlock, NewClient, Tier, Priority } from "./types";
-import { SEED_CLIENTS } from "./seed";
+import type {
+  Block,
+  Client,
+  NewBlock,
+  NewClient,
+  ServiceTag,
+  Priority,
+} from "./types";
+import { SERVICE_TAGS } from "./types";
 import { getSupabase } from "./supabase/client";
 import { isCloud } from "./config";
 import { planMerge, type MergePlan } from "./backup";
@@ -50,7 +57,7 @@ function writeLocal(key: string, value: unknown): void {
 /** Anything left in this browser from before the Supabase switch. */
 export function readLegacyLocalData(): { clients: Client[]; blocks: Block[] } | null {
   if (typeof window === "undefined") return null;
-  const clients = readLocal<Client[]>(CLIENTS_KEY, []);
+  const clients = readLocal<Client[]>(CLIENTS_KEY, []).map(normalizeClient);
   const blocks = readLocal<Block[]>(BLOCKS_KEY, []);
   if (clients.length === 0 && blocks.length === 0) return null;
   return { clients, blocks };
@@ -60,10 +67,34 @@ export function readLegacyLocalData(): { clients: Client[]; blocks: Block[] } | 
 // row <-> model mapping
 // ---------------------------------------------------------------------------
 type ClientRow = {
-  id: string; name: string; tier: string; services: string;
+  id: string; name: string; service_tags: string[] | null; services: string;
   strategist: string | null; basecamp_url: string | null;
-  color_key: number; archived: boolean;
+  color_key: number; color: string | null; archived: boolean;
 };
+
+const SERVICE_SET = new Set<string>(SERVICE_TAGS);
+const cleanTags = (v: unknown): ServiceTag[] =>
+  Array.isArray(v) ? (v.filter((t) => SERVICE_SET.has(t)) as ServiceTag[]) : [];
+
+/**
+ * Bring a client object read from localStorage up to the current shape.
+ * Data saved before "availed services" has `tier` but no `serviceTags`/`color`;
+ * without this the calendar throws on `client.serviceTags.map`.
+ */
+function normalizeClient(input: unknown): Client {
+  const c = (input ?? {}) as Record<string, unknown>;
+  return {
+    id: String(c.id ?? uid("cl")),
+    name: String(c.name ?? ""),
+    serviceTags: cleanTags(c.serviceTags),
+    services: String(c.services ?? ""),
+    strategist: typeof c.strategist === "string" ? c.strategist : null,
+    basecampUrl: typeof c.basecampUrl === "string" ? c.basecampUrl : null,
+    colorKey: Number.isFinite(c.colorKey) ? Number(c.colorKey) : 0,
+    color: typeof c.color === "string" ? c.color : null,
+    archived: Boolean(c.archived),
+  };
+}
 
 type BlockRow = {
   id: string; client_id: string; day: string;
@@ -74,22 +105,24 @@ type BlockRow = {
 const toClient = (r: ClientRow): Client => ({
   id: r.id,
   name: r.name,
-  tier: r.tier as Tier,
+  serviceTags: cleanTags(r.service_tags),
   services: r.services ?? "",
   strategist: r.strategist,
   basecampUrl: r.basecamp_url,
   colorKey: Number(r.color_key),
+  color: r.color ?? null,
   archived: Boolean(r.archived),
 });
 
 const fromClient = (c: Client) => ({
   id: c.id,
   name: c.name,
-  tier: c.tier,
+  service_tags: c.serviceTags,
   services: c.services,
   strategist: c.strategist,
   basecamp_url: c.basecampUrl,
   color_key: c.colorKey,
+  color: c.color,
   archived: c.archived,
 });
 
@@ -144,9 +177,8 @@ type Store = {
   removeBlock: (id: string) => Promise<void>;
 
   clientById: (id: string) => Client | undefined;
-  /** Bulk insert used by import and by "load the sample roster". */
+  /** Bulk insert used by backup import. */
   importData: (incoming: { clients: Client[]; blocks: Block[] }) => Promise<MergePlan>;
-  loadSampleRoster: () => Promise<MergePlan>;
 };
 
 const StoreContext = createContext<Store | null>(null);
@@ -174,7 +206,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     async function boot() {
       if (!isCloud) {
-        setClients(readLocal<Client[]>(CLIENTS_KEY, SEED_CLIENTS));
+        setClients(
+          readLocal<Client[]>(CLIENTS_KEY, []).map(normalizeClient)
+        );
         setBlocks(readLocal<Block[]>(BLOCKS_KEY, []));
         setReady(true);
         return;
@@ -236,11 +270,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const record: Client = {
         id: uid("cl"),
         name: input.name,
-        tier: input.tier,
+        serviceTags: input.serviceTags ?? [],
         services: input.services ?? "",
         strategist: input.strategist ?? null,
         basecampUrl: input.basecampUrl ?? null,
         colorKey: input.colorKey ?? nextColorKey(clients),
+        color: input.color ?? null,
         archived: false,
       };
       setClients((prev) => [...prev, record].sort(byName));
@@ -270,11 +305,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (modeRef.current === "cloud") {
       const row: Record<string, unknown> = {};
       if (patch.name !== undefined) row.name = patch.name;
-      if (patch.tier !== undefined) row.tier = patch.tier;
+      if (patch.serviceTags !== undefined) row.service_tags = patch.serviceTags;
       if (patch.services !== undefined) row.services = patch.services;
       if (patch.strategist !== undefined) row.strategist = patch.strategist;
       if (patch.basecampUrl !== undefined) row.basecamp_url = patch.basecampUrl;
       if (patch.colorKey !== undefined) row.color_key = patch.colorKey;
+      if (patch.color !== undefined) row.color = patch.color;
       if (patch.archived !== undefined) row.archived = patch.archived;
       const { error: err } = await getSupabase()!
         .from("clients").update(row).eq("id", id);
@@ -374,11 +410,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [clients]
   );
 
-  const loadSampleRoster = useCallback(
-    () => importData({ clients: SEED_CLIENTS, blocks: [] }),
-    [importData]
-  );
-
   const byId = useMemo(() => {
     const m = new Map<string, Client>();
     for (const c of clients) m.set(c.id, c);
@@ -392,13 +423,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clients, blocks, ready, mode, user, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
-      clientById, importData, loadSampleRoster,
+      clientById, importData,
     }),
     [
       clients, blocks, ready, mode, user, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
-      clientById, importData, loadSampleRoster,
+      clientById, importData,
     ]
   );
 

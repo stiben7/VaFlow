@@ -18,20 +18,40 @@ CREATE TABLE IF NOT EXISTS public.clients (
   user_id       UUID        NOT NULL DEFAULT auth.uid()
                             REFERENCES auth.users(id) ON DELETE CASCADE,
   name          TEXT        NOT NULL,
-  tier          TEXT        NOT NULL DEFAULT 'Custom',
+  -- Availed services, e.g. '{Website,Automation,GHL}'. A set, not a tier.
+  service_tags  TEXT[]      NOT NULL DEFAULT '{}',
   services      TEXT        NOT NULL DEFAULT '',
   strategist    TEXT,
   basecamp_url  TEXT,
   color_key     INTEGER     NOT NULL DEFAULT 0,
+  -- Optional custom hex ('#rrggbb'); overrides color_key when set.
+  color         TEXT,
   archived      BOOLEAN     NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CONSTRAINT clients_tier_chk CHECK (tier IN (
-    'Foundation', 'Accelerated Growth', 'Peak Performance',
-    'Paid Ads Only', 'Custom'
-  ))
+  CONSTRAINT clients_service_tags_chk CHECK (
+    service_tags <@ ARRAY['Admin','Website','Automation','General','GHL']::TEXT[]
+  ),
+  CONSTRAINT clients_color_chk CHECK (color IS NULL OR color ~ '^#[0-9a-fA-F]{6}$')
 );
+
+-- Migration for a database created before this change: run these once. Safe to
+-- re-run; each guards itself.
+ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS service_tags TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS color TEXT;
+ALTER TABLE public.clients DROP CONSTRAINT IF EXISTS clients_tier_chk;
+ALTER TABLE public.clients DROP COLUMN IF EXISTS tier;
+DO $$ BEGIN
+  ALTER TABLE public.clients ADD CONSTRAINT clients_service_tags_chk CHECK (
+    service_tags <@ ARRAY['Admin','Website','Automation','General','GHL']::TEXT[]
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE public.clients ADD CONSTRAINT clients_color_chk
+    CHECK (color IS NULL OR color ~ '^#[0-9a-fA-F]{6}$');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ---------------------------------------------------------------------------
 -- blocks

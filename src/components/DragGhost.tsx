@@ -19,12 +19,12 @@ export default function DragGhost() {
 
   const client = clientById(drag.payload.clientId);
   if (!client) return null;
-  const accent = accentFor(client.colorKey);
+  const accent = accentFor(client);
 
   return (
     <div
       className={`pointer-events-none fixed z-[60] max-w-[220px] -translate-y-1/2 translate-x-3 overflow-hidden rounded-md border pl-2.5 pr-2.5 py-1.5 shadow-xl ${accent.chip}`}
-      style={{ left: drag.pointer.x, top: drag.pointer.y }}
+      style={{ ...accent.style, left: drag.pointer.x, top: drag.pointer.y }}
     >
       <span className={`absolute inset-y-0 left-0 w-[3px] ${accent.bar}`} />
       <div className={`truncate text-[12px] font-semibold ${accent.text}`}>

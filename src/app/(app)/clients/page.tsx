@@ -3,14 +3,15 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
-import { accentFor, TIER_BADGE, TIER_SHORT } from "@/lib/colors";
-import { TIERS, type Client, type Tier } from "@/lib/types";
-import AddClientDialog from "@/components/AddClientDialog";
+import { accentFor, SERVICE_BADGE } from "@/lib/colors";
+import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
+import ClientDialog from "@/components/ClientDialog";
 import {
   PlusIcon,
   SearchIcon,
   LinkIcon,
   TrashIcon,
+  PencilIcon,
   CalendarIcon,
   CloseIcon,
 } from "@/components/Icons";
@@ -18,8 +19,9 @@ import {
 export default function ClientsPage() {
   const { clients, blocks, ready, removeClient } = useStore();
   const [q, setQ] = useState("");
-  const [tier, setTier] = useState<Tier | null>(null);
+  const [service, setService] = useState<ServiceTag | null>(null);
   const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const blockCount = useMemo(() => {
@@ -32,12 +34,13 @@ export default function ClientsPage() {
     const needle = q.trim().toLowerCase();
     const filtered = clients
       .filter((c) => !c.archived)
-      .filter((c) => (tier ? c.tier === tier : true))
+      .filter((c) => (service ? c.serviceTags.includes(service) : true))
       .filter(
         (c) =>
           !needle ||
           c.name.toLowerCase().includes(needle) ||
           c.services.toLowerCase().includes(needle) ||
+          c.serviceTags.join(" ").toLowerCase().includes(needle) ||
           (c.strategist ?? "").toLowerCase().includes(needle)
       )
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -51,11 +54,14 @@ export default function ClientsPage() {
       map.set(key, list);
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [clients, q, tier]);
+  }, [clients, q, service]);
 
   const shown = groups.reduce((n, [, list]) => n + list.length, 0);
   const confirming = confirmId
     ? clients.find((c) => c.id === confirmId)
+    : undefined;
+  const editingClient = editId
+    ? clients.find((c) => c.id === editId)
     : undefined;
 
   return (
@@ -91,28 +97,30 @@ export default function ClientsPage() {
 
       <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-edge bg-panel px-5 py-2">
         <button
-          onClick={() => setTier(null)}
+          onClick={() => setService(null)}
           className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
-            tier === null
+            service === null
               ? "bg-brand text-white"
               : "bg-sunken text-muted hover:text-ink"
           }`}
         >
           All
         </button>
-        {(TIERS as Tier[]).map((t) => {
-          const count = clients.filter((c) => !c.archived && c.tier === t).length;
+        {SERVICE_TAGS.map((t) => {
+          const count = clients.filter(
+            (c) => !c.archived && c.serviceTags.includes(t)
+          ).length;
           return (
             <button
               key={t}
-              onClick={() => setTier(tier === t ? null : t)}
+              onClick={() => setService(service === t ? null : t)}
               className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
-                tier === t
+                service === t
                   ? "bg-brand text-white"
-                  : `${TIER_BADGE[t]} opacity-75 hover:opacity-100`
+                  : `${SERVICE_BADGE[t]} opacity-75 hover:opacity-100`
               }`}
             >
-              {TIER_SHORT[t]}
+              {t}
               <span className="tabular-nums opacity-60">{count}</span>
             </button>
           );
@@ -132,7 +140,7 @@ export default function ClientsPage() {
             <button
               onClick={() => {
                 setQ("");
-                setTier(null);
+                setService(null);
               }}
               className="mt-2 text-[12.5px] font-medium text-brand hover:underline"
             >
@@ -152,6 +160,7 @@ export default function ClientsPage() {
                       key={c.id}
                       client={c}
                       scheduled={blockCount.get(c.id) ?? 0}
+                      onEdit={() => setEditId(c.id)}
                       onDelete={() => setConfirmId(c.id)}
                     />
                   ))}
@@ -162,7 +171,14 @@ export default function ClientsPage() {
         )}
       </div>
 
-      {adding && <AddClientDialog onClose={() => setAdding(false)} />}
+      {adding && <ClientDialog onClose={() => setAdding(false)} />}
+
+      {editingClient && (
+        <ClientDialog
+          client={editingClient}
+          onClose={() => setEditId(null)}
+        />
+      )}
 
       {confirming && (
         <div
@@ -208,17 +224,22 @@ export default function ClientsPage() {
 function ClientRow({
   client,
   scheduled,
+  onEdit,
   onDelete,
 }: {
   client: Client;
   scheduled: number;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const accent = accentFor(client.colorKey);
+  const accent = accentFor(client);
 
   return (
-    <li className="group relative overflow-hidden rounded-lg border border-edge bg-canvas transition-colors hover:border-faint">
+    <li
+      style={accent.style}
+      className="group relative overflow-hidden rounded-lg border border-edge bg-canvas transition-colors hover:border-faint"
+    >
       <span className={`absolute inset-y-0 left-0 w-[3px] ${accent.bar}`} />
       <div className="flex items-start gap-3 py-2.5 pl-4 pr-3">
         <button
@@ -230,11 +251,14 @@ function ClientRow({
             <span className="text-[13px] font-medium text-ink">
               {client.name}
             </span>
-            <span
-              className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${TIER_BADGE[client.tier]}`}
-            >
-              {TIER_SHORT[client.tier]}
-            </span>
+            {client.serviceTags.map((t) => (
+              <span
+                key={t}
+                className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE[t]}`}
+              >
+                {t}
+              </span>
+            ))}
             {client.strategist && (
               <span className="text-[11px] text-faint">
                 {client.strategist}
@@ -273,6 +297,13 @@ function ClientRow({
           >
             <CalendarIcon />
           </Link>
+          <button
+            onClick={onEdit}
+            title="Edit client"
+            className="rounded-md p-1.5 text-faint hover:bg-sunken hover:text-brand"
+          >
+            <PencilIcon />
+          </button>
           <button
             onClick={onDelete}
             title="Remove client"

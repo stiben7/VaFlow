@@ -9,3 +9,7 @@ build
 .vercel
 next-env.d.ts
 *.tsbuildinfo
+
+# Next.js 16 auto-generates these on build
+AGENTS.md
+CLAUDE.md

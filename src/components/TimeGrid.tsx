@@ -38,7 +38,25 @@ export default function TimeGrid({ days }: { days: Date[] }) {
   const daysRef = useRef(days);
   daysRef.current = days;
 
-  const [openId, setOpenId] = useState<string | null>(null);
+  // Multi-select. `openId` (the anchored detail card) is just "exactly one
+  // block selected" -- clicking a chip, or a marquee that lands on a single
+  // block, both open the card; a wider marquee selects a group instead.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const openId = selected.size === 1 ? [...selected][0] : null;
+  const selectOnly = useCallback(
+    (id: string) =>
+      setSelected((cur) =>
+        cur.size === 1 && cur.has(id) ? new Set() : new Set([id])
+      ),
+    []
+  );
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
+
+  // Rubber-band rectangle, in coordinates relative to the day-column grid.
+  const [marquee, setMarquee] = useState<
+    { x0: number; y0: number; x1: number; y1: number } | null
+  >(null);
+
   const [nowMin, setNowMin] = useState(() => {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();
@@ -124,12 +142,18 @@ export default function TimeGrid({ days }: { days: Date[] }) {
 
       const ctrl = e.ctrlKey || e.metaKey;
 
-      // Del / Backspace -> remove selected block
-      if ((e.key === "Delete" || e.key === "Backspace") && openId) {
+      if (e.key === "Escape" && selected.size) {
+        setSelected(new Set());
+        return;
+      }
+
+      // Del / Backspace -> remove every selected block
+      if ((e.key === "Delete" || e.key === "Backspace") && selected.size) {
         e.preventDefault();
-        void removeBlock(openId);
-        setOpenId(null);
-        setToast("Block deleted");
+        const n = selected.size;
+        for (const id of selected) void removeBlock(id);
+        setSelected(new Set());
+        setToast(n === 1 ? "Block deleted" : `${n} blocks deleted`);
         return;
       }
 
@@ -137,19 +161,21 @@ export default function TimeGrid({ days }: { days: Date[] }) {
 
       const block = openId ? blocks.find((b) => b.id === openId) : null;
 
-      // Ctrl+D -> duplicate selected block (offset 15 min down)
-      if (e.key === "d" && block) {
+      // Ctrl+D -> duplicate every selected block (offset 15 min down)
+      if (e.key === "d" && selected.size) {
         e.preventDefault();
-        const newStart = clamp(block.startMin + 15, 0, 1440 - block.durationMin);
-        void addBlock({
-          clientId: block.clientId,
-          date: block.date,
-          startMin: newStart,
-          durationMin: block.durationMin,
-          priority: block.priority,
-          note: block.note,
-        });
-        setToast("Block duplicated");
+        const dupes = blocks.filter((b) => selected.has(b.id));
+        for (const b of dupes) {
+          void addBlock({
+            clientId: b.clientId,
+            date: b.date,
+            startMin: clamp(b.startMin + 15, 0, 1440 - b.durationMin),
+            durationMin: b.durationMin,
+            priority: b.priority,
+            note: b.note,
+          });
+        }
+        setToast(dupes.length === 1 ? "Block duplicated" : `${dupes.length} blocks duplicated`);
         return;
       }
 
@@ -199,7 +225,98 @@ export default function TimeGrid({ days }: { days: Date[] }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openId, blocks, addBlock, removeBlock]);
+  }, [openId, selected, blocks, addBlock, removeBlock]);
+
+  // ---- marquee (drag-highlight) selection --------------------------------
+  const onMarqueeDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0 || e.pointerType === "touch") return;
+      // A press that starts on a chip or its resize handle is a move/resize,
+      // not a selection sweep -- those stop propagation, but guard anyway.
+      if ((e.target as HTMLElement).closest("[data-block-id]")) return;
+
+      const grid = colsRef.current;
+      if (!grid) return;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const base = e.shiftKey ? new Set(selected) : new Set<string>();
+      let moved = false;
+
+      const toLocal = (cx: number, cy: number) => {
+        const r = grid.getBoundingClientRect();
+        return {
+          x: clamp(cx - r.left, 0, r.width),
+          y: clamp(cy - r.top, 0, r.height),
+        };
+      };
+
+      const hits = (cx: number, cy: number): Set<string> => {
+        const minX = Math.min(startX, cx);
+        const maxX = Math.max(startX, cx);
+        const minY = Math.min(startY, cy);
+        const maxY = Math.max(startY, cy);
+        const next = new Set(base);
+        grid.querySelectorAll<HTMLElement>("[data-block-id]").forEach((node) => {
+          const b = node.getBoundingClientRect();
+          if (b.left < maxX && b.right > minX && b.top < maxY && b.bottom > minY) {
+            next.add(node.dataset.blockId!);
+          }
+        });
+        return next;
+      };
+
+      const onMove = (ev: PointerEvent) => {
+        if (!moved) {
+          if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+          moved = true;
+          document.body.style.userSelect = "none";
+        }
+        ev.preventDefault();
+        const a = toLocal(startX, startY);
+        const c = toLocal(ev.clientX, ev.clientY);
+        setMarquee({ x0: a.x, y0: a.y, x1: c.x, y1: c.y });
+        setSelected(hits(ev.clientX, ev.clientY));
+      };
+
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        document.body.style.userSelect = "";
+        setMarquee(null);
+        // A press that never moved is a click on empty space: drop the
+        // selection (unless the user was shift-adding).
+        if (!moved && !e.shiftKey) setSelected(new Set());
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [selected]
+  );
+
+  /** Move every selected block by the same delta as the dragged anchor. */
+  const moveGroup = useCallback(
+    (anchor: Block, p: { date: string; startMin: number }) => {
+      const keys = daysRef.current.map(toKey);
+      const fromIdx = keys.indexOf(anchor.date);
+      const toIdx = keys.indexOf(p.date);
+      const dayDelta = fromIdx >= 0 && toIdx >= 0 ? toIdx - fromIdx : 0;
+      const minDelta = p.startMin - anchor.startMin;
+      for (const id of selected) {
+        const b = blocks.find((x) => x.id === id);
+        if (!b) continue;
+        let date = b.date;
+        if (dayDelta !== 0) {
+          const bi = keys.indexOf(b.date);
+          if (bi >= 0) date = keys[clamp(bi + dayDelta, 0, keys.length - 1)];
+        }
+        const startMin = clamp(b.startMin + minDelta, 0, 1440 - b.durationMin);
+        void editBlock(b.id, { date, startMin });
+      }
+    },
+    [selected, blocks, editBlock]
+  );
 
   const byDate = useMemo(() => {
     const m = new Map<string, Block[]>();
@@ -309,6 +426,7 @@ export default function TimeGrid({ days }: { days: Date[] }) {
           {/* day columns */}
           <div
             ref={colsRef}
+            onPointerDown={onMarqueeDown}
             className="relative grid flex-1"
             style={{
               gridTemplateColumns: `repeat(${days.length}, minmax(0,1fr))`,
@@ -363,10 +481,11 @@ export default function TimeGrid({ days }: { days: Date[] }) {
                         block={shown}
                         clientName={client.name}
                         colorKey={client.colorKey}
+                        color={client.color}
                         lane={lane}
                         lanes={lanes}
                         dimmed={isMoving}
-                        selected={openId === block.id}
+                        selected={selected.has(block.id)}
                         compact={lanes > 3}
                         onMove={(e) => {
                           const rect = (
@@ -378,12 +497,17 @@ export default function TimeGrid({ days }: { days: Date[] }) {
                             e,
                             block,
                             grabOffsetMin,
-                            (p) =>
-                              void editBlock(block.id, {
-                                date: p.date,
-                                startMin: p.startMin,
-                              }),
-                            () => setOpenId((cur) => (cur === block.id ? null : block.id))
+                            (p) => {
+                              if (selected.size > 1 && selected.has(block.id)) {
+                                moveGroup(block, p);
+                              } else {
+                                void editBlock(block.id, {
+                                  date: p.date,
+                                  startMin: p.startMin,
+                                });
+                              }
+                            },
+                            () => selectOnly(block.id)
                           );
                         }}
                         onResize={(e) =>
@@ -424,17 +548,42 @@ export default function TimeGrid({ days }: { days: Date[] }) {
                 </div>
               );
             })}
+
+            {/* marquee rectangle */}
+            {marquee && (
+              <div
+                className="pointer-events-none absolute z-[60] rounded-[2px] border border-brand bg-brand-soft/25"
+                style={{
+                  left: Math.min(marquee.x0, marquee.x1),
+                  top: Math.min(marquee.y0, marquee.y1),
+                  width: Math.abs(marquee.x1 - marquee.x0),
+                  height: Math.abs(marquee.y1 - marquee.y0),
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
 
       {openId && (
-        <BlockDetail blockId={openId} onClose={() => setOpenId(null)} />
+        <BlockDetail blockId={openId} onClose={clearSelection} />
+      )}
+
+      {selected.size > 1 && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-50 -translate-x-1/2">
+          <div className="pop-in rounded-lg border border-edge bg-canvas/95 px-3 py-1.5 text-[11.5px] font-medium text-ink shadow-lg backdrop-blur">
+            {selected.size} selected &middot; Del to remove &middot; Ctrl+D to duplicate
+          </div>
+        </div>
       )}
 
       {/* Shortcut toast */}
       {toast && (
-        <div className="pointer-events-none absolute bottom-4 left-1/2 z-50 -translate-x-1/2">
+        <div
+          className={`pointer-events-none absolute left-1/2 z-50 -translate-x-1/2 ${
+            selected.size > 1 ? "bottom-14" : "bottom-4"
+          }`}
+        >
           <div className="pop-in rounded-lg border border-edge bg-canvas/95 px-3 py-1.5 text-[11.5px] font-medium text-ink shadow-lg backdrop-blur">
             {toast}
           </div>
@@ -448,6 +597,7 @@ function BlockChip({
   block,
   clientName,
   colorKey,
+  color,
   lane,
   lanes,
   dimmed,
@@ -459,6 +609,7 @@ function BlockChip({
   block: Block;
   clientName: string;
   colorKey: number;
+  color: string | null;
   lane: number;
   lanes: number;
   dimmed: boolean;
@@ -467,7 +618,7 @@ function BlockChip({
   onMove: (e: React.PointerEvent) => void;
   onResize: (e: React.PointerEvent) => void;
 }) {
-  const accent = accentFor(colorKey);
+  const accent = accentFor({ colorKey, color });
   const top = (block.startMin / 1440) * DAY_H;
   const height = Math.max(18, (block.durationMin / 1440) * DAY_H - 2);
   const tiny = height < 34;
@@ -490,6 +641,7 @@ function BlockChip({
         dimmed ? "opacity-30" : "hover:shadow-md"
       } ${selected ? `ring-2 ${accent.ring}` : ""}`}
       style={{
+        ...accent.style,
         top,
         height,
         left: `calc(${left}% + 2px)`,

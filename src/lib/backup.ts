@@ -1,5 +1,8 @@
-import type { Block, Client, Tier, Priority } from "./types";
-import { TIERS, PRIORITIES } from "./types";
+import type { Block, Client, ServiceTag, Priority } from "./types";
+import { SERVICE_TAGS, PRIORITIES } from "./types";
+import { HEX_RE } from "./colors";
+
+const SERVICE_SET = new Set<string>(SERVICE_TAGS);
 
 export const BACKUP_VERSION = 1;
 
@@ -71,15 +74,20 @@ export function parseBackup(text: string): { clients: Client[]; blocks: Block[] 
   for (const c of obj.clients as Record<string, unknown>[]) {
     const name = String(c?.name ?? "").trim();
     if (!name) continue;
-    const tier = TIERS.includes(c?.tier as Tier) ? (c.tier as Tier) : "Custom";
+    const serviceTags = Array.isArray(c?.serviceTags)
+      ? (c.serviceTags.filter((t) => SERVICE_SET.has(t)) as ServiceTag[])
+      : [];
+    const color =
+      typeof c?.color === "string" && HEX_RE.test(c.color) ? c.color : null;
     clients.push({
       id: String(c.id ?? ""),
       name,
-      tier,
+      serviceTags,
       services: String(c.services ?? ""),
       strategist: c.strategist ? String(c.strategist) : null,
       basecampUrl: c.basecampUrl ? String(c.basecampUrl) : null,
       colorKey: Number.isFinite(c.colorKey) ? Number(c.colorKey) : 0,
+      color,
       archived: Boolean(c.archived),
     });
   }

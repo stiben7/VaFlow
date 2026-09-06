@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore, readLegacyLocalData } from "@/lib/store";
 import { useDrag, DEFAULT_DURATION } from "@/lib/drag";
-import { accentFor, TIER_BADGE, TIER_SHORT } from "@/lib/colors";
-import { TIERS, type Client, type Tier } from "@/lib/types";
+import { accentFor, SERVICE_BADGE } from "@/lib/colors";
+import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
 import { downloadBackup, parseBackup, BackupError } from "@/lib/backup";
 import {
-  SearchIcon, PlusIcon, CloseIcon, DownloadIcon, UploadIcon, SparkIcon,
+  SearchIcon, PlusIcon, CloseIcon, DownloadIcon, UploadIcon, PencilIcon,
 } from "./Icons";
-import AddClientDialog from "./AddClientDialog";
+import ClientDialog from "./ClientDialog";
 
 const LEGACY_DISMISSED = "vaflow.legacyDismissed";
 
@@ -21,14 +21,15 @@ export default function ClientPool({
 }) {
   const {
     clients, blocks, addBlock, ready, mode,
-    importData, loadSampleRoster,
+    importData,
   } = useStore();
   const { startClientDrag, drag } = useDrag();
 
   const [q, setQ] = useState("");
-  const [tierFilter, setTierFilter] = useState<Tier | null>(null);
+  const [serviceFilter, setServiceFilter] = useState<ServiceTag | null>(null);
   const [unscheduledOnly, setUnscheduledOnly] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -105,21 +106,6 @@ export default function ClientPool({
     }
   }
 
-  async function onLoadSample() {
-    setBusy("sample");
-    try {
-      const plan = await loadSampleRoster();
-      setToast({ kind: "ok", text: `Added ${plan.newClients.length} sample accounts.` });
-    } catch (err) {
-      setToast({
-        kind: "err",
-        text: err instanceof Error ? err.message : "Could not load the sample roster.",
-      });
-    } finally {
-      setBusy(null);
-    }
-  }
-
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), 5000);
@@ -143,16 +129,18 @@ export default function ClientPool({
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return active
-      .filter((c) => (tierFilter ? c.tier === tierFilter : true))
+      .filter((c) => (serviceFilter ? c.serviceTags.includes(serviceFilter) : true))
       .filter((c) => (unscheduledOnly ? !bookedCount.get(c.id) : true))
       .filter(
         (c) =>
           !needle ||
           c.name.toLowerCase().includes(needle) ||
-          c.tier.toLowerCase().includes(needle) ||
+          c.serviceTags.join(" ").toLowerCase().includes(needle) ||
           (c.strategist ?? "").toLowerCase().includes(needle)
       );
-  }, [active, q, tierFilter, unscheduledOnly, bookedCount]);
+  }, [active, q, serviceFilter, unscheduledOnly, bookedCount]);
+
+  const editingClient = editId ? clients.find((c) => c.id === editId) : undefined;
 
   const draggingId =
     drag?.active && drag.payload.kind === "client" ? drag.payload.clientId : null;
@@ -272,17 +260,17 @@ export default function ClientPool({
 
             {/* Filters */}
             <div className="flex flex-wrap gap-1 px-3.5 pb-2.5">
-              {(TIERS as Tier[]).map((t) => {
-                const on = tierFilter === t;
+              {SERVICE_TAGS.map((t) => {
+                const on = serviceFilter === t;
                 return (
                   <button
                     key={t}
-                    onClick={() => setTierFilter(on ? null : t)}
+                    onClick={() => setServiceFilter(on ? null : t)}
                     className={`rounded-full px-2 py-[3px] text-[10.5px] font-medium transition-all ${
-                      on ? "bg-brand text-white" : `${TIER_BADGE[t]} opacity-70 hover:opacity-100`
+                      on ? "bg-brand text-white" : `${SERVICE_BADGE[t]} opacity-70 hover:opacity-100`
                     }`}
                   >
-                    {TIER_SHORT[t]}
+                    {t}
                   </button>
                 );
               })}
@@ -316,8 +304,8 @@ export default function ClientPool({
             <div className="px-1.5 pt-2">
               <p className="text-[12.5px] font-medium text-ink">No clients yet</p>
               <p className="mt-1 text-[11.5px] leading-relaxed text-muted">
-                Add your accounts one at a time, restore a backup, or start from
-                a sample bridal roster you can rename.
+                Add your accounts one at a time, or restore them from a backup
+                file.
               </p>
               <div className="mt-3 space-y-1.5">
                 <button
@@ -335,14 +323,6 @@ export default function ClientPool({
                   <UploadIcon className="h-3.5 w-3.5" />
                   {busy === "import" ? "Importing..." : "Import a backup"}
                 </button>
-                <button
-                  onClick={onLoadSample}
-                  disabled={busy !== null}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-md border border-edge bg-canvas py-2 text-[12.5px] font-medium text-muted hover:bg-sunken hover:text-ink disabled:opacity-50"
-                >
-                  <SparkIcon className="h-3.5 w-3.5" />
-                  {busy === "sample" ? "Adding..." : "Load 26 sample accounts"}
-                </button>
               </div>
             </div>
           ) : visible.length === 0 ? (
@@ -351,7 +331,7 @@ export default function ClientPool({
               <button
                 onClick={() => {
                   setQ("");
-                  setTierFilter(null);
+                  setServiceFilter(null);
                   setUnscheduledOnly(false);
                 }}
                 className="mt-1.5 text-[12px] font-medium text-brand hover:underline"
@@ -367,6 +347,7 @@ export default function ClientPool({
                   client={c}
                   booked={bookedCount.get(c.id) ?? 0}
                   dimmed={draggingId === c.id}
+                  onEdit={() => setEditId(c.id)}
                   onPointerDown={(e) =>
                     startClientDrag(e, c.id, (p) => {
                       void addBlock({
@@ -401,25 +382,30 @@ export default function ClientPool({
         )}
       </aside>
 
-      {adding && <AddClientDialog onClose={() => setAdding(false)} />}
+      {adding && <ClientDialog onClose={() => setAdding(false)} />}
+      {editingClient && (
+        <ClientDialog client={editingClient} onClose={() => setEditId(null)} />
+      )}
     </>
   );
 }
 
 function PoolCard({
-  client, booked, dimmed, onPointerDown,
+  client, booked, dimmed, onEdit, onPointerDown,
 }: {
   client: Client;
   booked: number;
   dimmed: boolean;
+  onEdit: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
 }) {
-  const accent = accentFor(client.colorKey);
+  const accent = accentFor(client);
   return (
     <li>
       <div
         onPointerDown={onPointerDown}
         title={client.services || client.name}
+        style={accent.style}
         className={`no-touch-scroll group relative cursor-grab overflow-hidden rounded-md border bg-canvas pl-2.5 pr-2 py-2 transition-all active:cursor-grabbing ${
           dimmed
             ? "opacity-35"
@@ -427,17 +413,30 @@ function PoolCard({
         }`}
       >
         <span className={`absolute inset-y-0 left-0 w-[3px] ${accent.bar}`} aria-hidden />
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onEdit}
+          aria-label={`Edit ${client.name}`}
+          title="Edit client"
+          className="absolute right-1 top-1 z-10 rounded-md bg-canvas/80 p-1 text-faint opacity-0 backdrop-blur transition-opacity hover:text-brand group-hover:opacity-100 focus-visible:opacity-100"
+        >
+          <PencilIcon className="h-3.5 w-3.5" />
+        </button>
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12.5px] font-medium leading-tight text-ink">
               {client.name}
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span
-                className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${TIER_BADGE[client.tier]}`}
-              >
-                {TIER_SHORT[client.tier]}
-              </span>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {client.serviceTags.map((t) => (
+                <span
+                  key={t}
+                  className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE[t]}`}
+                >
+                  {t}
+                </span>
+              ))}
               {client.strategist && (
                 <span className="truncate text-[10.5px] text-faint">
                   {client.strategist}
@@ -448,7 +447,7 @@ function PoolCard({
           {booked > 0 && (
             <span
               title={`${booked} block${booked > 1 ? "s" : ""} in view`}
-              className="mt-0.5 shrink-0 rounded-full bg-sunken px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted"
+              className="mt-0.5 shrink-0 rounded-full bg-sunken px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted transition-opacity group-hover:opacity-0"
             >
               {booked}
             </span>

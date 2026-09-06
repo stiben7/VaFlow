@@ -2,10 +2,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { accentFor, PRIORITY_META, TIER_BADGE, TIER_SHORT } from "@/lib/colors";
+import { accentFor, PRIORITY_META, SERVICE_BADGE } from "@/lib/colors";
 import { PRIORITIES, type Priority } from "@/lib/types";
 import { formatDayLong, formatDuration, formatTime, fromKey } from "@/lib/date";
-import { CloseIcon, TrashIcon, LinkIcon, ClockIcon } from "./Icons";
+import { CloseIcon, TrashIcon, LinkIcon, ClockIcon, PencilIcon } from "./Icons";
+import ClientDialog from "./ClientDialog";
 
 const W = 288;
 const GAP = 8;
@@ -30,6 +31,7 @@ export default function BlockDetail({
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [note, setNote] = useState(block?.note ?? "");
+  const [editing, setEditing] = useState(false);
 
   useLayoutEffect(() => {
     const anchor = document.querySelector<HTMLElement>(
@@ -56,6 +58,9 @@ export default function BlockDetail({
   }, [blockId]);
 
   useEffect(() => {
+    // While the edit dialog is open it owns dismissal -- the popover must not
+    // close underneath it (that would unmount the dialog too).
+    if (editing) return;
     function onDown(e: MouseEvent) {
       const t = e.target as Node;
       if (cardRef.current?.contains(t)) return;
@@ -71,10 +76,17 @@ export default function BlockDetail({
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose, blockId]);
+  }, [onClose, blockId, editing]);
 
   if (!block || !client) return null;
-  const accent = accentFor(client.colorKey);
+
+  if (editing) {
+    return (
+      <ClientDialog client={client} onClose={() => setEditing(false)} />
+    );
+  }
+
+  const accent = accentFor(client);
   const end = block.startMin + block.durationMin;
 
   return (
@@ -83,7 +95,12 @@ export default function BlockDetail({
       role="dialog"
       aria-label={`${client.name} block details`}
       className="pop-in fixed z-50 overflow-hidden rounded-xl border border-edge bg-canvas shadow-2xl"
-      style={{ width: W, top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
+      style={{
+        ...accent.style,
+        width: W,
+        top: pos?.top ?? -9999,
+        left: pos?.left ?? -9999,
+      }}
     >
       <div className={`h-1 w-full ${accent.bar}`} />
 
@@ -94,11 +111,14 @@ export default function BlockDetail({
               {client.name}
             </h3>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <span
-                className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${TIER_BADGE[client.tier]}`}
-              >
-                {TIER_SHORT[client.tier]}
-              </span>
+              {client.serviceTags.map((t) => (
+                <span
+                  key={t}
+                  className={`rounded px-1.5 py-[1px] text-[10px] font-medium ${SERVICE_BADGE[t]}`}
+                >
+                  {t}
+                </span>
+              ))}
               {client.strategist && (
                 <span className="text-[10.5px] text-faint">
                   {client.strategist}
@@ -106,13 +126,23 @@ export default function BlockDetail({
               )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-1 -mt-0.5 rounded-md p-1 text-faint hover:bg-sunken hover:text-ink"
-          >
-            <CloseIcon />
-          </button>
+          <div className="-mr-1 -mt-0.5 flex shrink-0 items-center">
+            <button
+              onClick={() => setEditing(true)}
+              aria-label="Edit client"
+              title="Edit client"
+              className="rounded-md p-1 text-faint hover:bg-sunken hover:text-brand"
+            >
+              <PencilIcon />
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-md p-1 text-faint hover:bg-sunken hover:text-ink"
+            >
+              <CloseIcon />
+            </button>
+          </div>
         </div>
 
         <div className="mt-2.5 flex items-center gap-1.5 text-[11.5px] text-muted">

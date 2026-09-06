@@ -2,29 +2,61 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { ACCENTS, TIER_BADGE, TIER_SHORT } from "@/lib/colors";
-import { TIERS, type Tier } from "@/lib/types";
+import { ACCENTS, SERVICE_BADGE, HEX_RE } from "@/lib/colors";
+import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
 import { CloseIcon } from "./Icons";
 
-export default function AddClientDialog({
+/**
+ * Add a new client, or -- when `client` is passed -- edit an existing one.
+ * Same form either way; the only differences are the initial values, the
+ * title/button copy, and add vs. patch on submit.
+ */
+export default function ClientDialog({
+  client,
   onClose,
 }: {
+  client?: Client;
   onClose: () => void;
 }) {
-  const { addClient, clients } = useStore();
-  const [name, setName] = useState("");
-  const [tier, setTier] = useState<Tier>("Accelerated Growth");
-  const [strategist, setStrategist] = useState("");
-  const [basecampUrl, setBasecampUrl] = useState("");
-  const [services, setServices] = useState("");
+  const { addClient, editClient, clients } = useStore();
+  const editing = client != null;
+
+  const [name, setName] = useState(client?.name ?? "");
+  const [serviceTags, setServiceTags] = useState<ServiceTag[]>(
+    client?.serviceTags ?? []
+  );
+  const [strategist, setStrategist] = useState(client?.strategist ?? "");
+  const [basecampUrl, setBasecampUrl] = useState(client?.basecampUrl ?? "");
+  const [services, setServices] = useState(client?.services ?? "");
   const [colorKey, setColorKey] = useState<number>(() => {
+    if (client) return ((client.colorKey % 8) + 8) % 8;
     const counts = new Array(8).fill(0);
     for (const c of clients) counts[((c.colorKey % 8) + 8) % 8] += 1;
     let best = 0;
     for (let i = 1; i < 8; i += 1) if (counts[i] < counts[best]) best = i;
     return best;
   });
+  // `hexDraft` is whatever is in the text box; `customMode` says the custom
+  // colour (not a preset) is the active one. The client's `color` is the draft
+  // only when it is a complete, valid hex.
+  const [hexDraft, setHexDraft] = useState(client?.color ?? "#4f46e5");
+  const [customMode, setCustomMode] = useState(
+    Boolean(client?.color && HEX_RE.test(client.color))
+  );
   const [saving, setSaving] = useState(false);
+
+  const validHex = HEX_RE.test(hexDraft);
+  const customColor = customMode && validHex ? hexDraft : null;
+
+  const toggleTag = (t: ServiceTag) =>
+    setServiceTags((cur) =>
+      cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]
+    );
+
+  function applyHex(value: string) {
+    setHexDraft(value.startsWith("#") ? value : `#${value}`);
+    setCustomMode(true);
+  }
 
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => nameRef.current?.focus(), []);
@@ -38,7 +70,9 @@ export default function AddClientDialog({
   }, [onClose]);
 
   const duplicate = clients.some(
-    (c) => c.name.trim().toLowerCase() === name.trim().toLowerCase()
+    (c) =>
+      c.id !== client?.id &&
+      c.name.trim().toLowerCase() === name.trim().toLowerCase()
   );
   const canSave = name.trim().length > 0 && !duplicate && !saving;
 
@@ -46,14 +80,17 @@ export default function AddClientDialog({
     e.preventDefault();
     if (!canSave) return;
     setSaving(true);
-    await addClient({
+    const patch = {
       name: name.trim(),
-      tier,
+      serviceTags,
       services: services.trim(),
       strategist: strategist.trim() || null,
       basecampUrl: basecampUrl.trim() || null,
       colorKey,
-    });
+      color: customColor,
+    };
+    if (editing) await editClient(client.id, patch);
+    else await addClient(patch);
     onClose();
   }
 
@@ -68,12 +105,15 @@ export default function AddClientDialog({
         onSubmit={submit}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="add-client-title"
+        aria-labelledby="client-dialog-title"
         className="pop-in w-full max-w-[460px] overflow-hidden rounded-xl border border-edge bg-canvas shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-edge px-5 py-3.5">
-          <h2 id="add-client-title" className="text-[14px] font-semibold text-ink">
-            Add client
+          <h2
+            id="client-dialog-title"
+            className="text-[14px] font-semibold text-ink"
+          >
+            {editing ? "Edit client" : "Add client"}
           </h2>
           <button
             type="button"
@@ -101,40 +141,84 @@ export default function AddClientDialog({
             )}
           </Field>
 
-          <Field label="Package">
+          <Field label="Availed services">
             <div className="flex flex-wrap gap-1.5">
-              {(TIERS as Tier[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTier(t)}
-                  className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-all ${
-                    tier === t
-                      ? "bg-brand text-white"
-                      : `${TIER_BADGE[t]} opacity-70 hover:opacity-100`
-                  }`}
-                >
-                  {TIER_SHORT[t]}
-                </button>
-              ))}
+              {SERVICE_TAGS.map((t) => {
+                const on = serviceTags.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleTag(t)}
+                    className={`rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-all ${
+                      on
+                        ? "bg-brand text-white"
+                        : `${SERVICE_BADGE[t]} opacity-70 hover:opacity-100`
+                    }`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
             </div>
           </Field>
 
           <Field label="Colour">
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {ACCENTS.map((a, i) => (
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setColorKey(i)}
+                  onClick={() => {
+                    setColorKey(i);
+                    setCustomMode(false);
+                  }}
                   aria-label={`Colour ${i + 1}`}
                   className={`h-6 w-6 rounded-full ${a.dot} transition-transform ${
-                    colorKey === i
+                    !customMode && colorKey === i
                       ? "scale-110 ring-2 ring-ink ring-offset-2 ring-offset-[var(--color-canvas)]"
                       : "hover:scale-105"
                   }`}
                 />
               ))}
+
+              {/* Custom hex */}
+              <span className="mx-0.5 h-5 w-px bg-edge" aria-hidden />
+              <label
+                onClick={() => setCustomMode(true)}
+                className={`relative h-6 w-6 shrink-0 cursor-pointer rounded-full transition-transform ${
+                  customMode
+                    ? "scale-110 ring-2 ring-ink ring-offset-2 ring-offset-[var(--color-canvas)]"
+                    : "hover:scale-105"
+                }`}
+                style={{
+                  background:
+                    customMode && validHex
+                      ? hexDraft
+                      : "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                }}
+                title="Custom colour"
+              >
+                <input
+                  type="color"
+                  value={validHex ? hexDraft : "#4f46e5"}
+                  onChange={(e) => applyHex(e.target.value)}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+              <input
+                value={hexDraft}
+                onChange={(e) => applyHex(e.target.value)}
+                onFocus={() => setCustomMode(true)}
+                placeholder="#4f46e5"
+                spellCheck={false}
+                className={`w-[86px] rounded-md border bg-canvas px-2 py-1 font-mono text-[11.5px] text-ink outline-none placeholder:text-faint focus:ring-2 focus:ring-brand/15 ${
+                  customMode && !validHex
+                    ? "border-danger"
+                    : "border-edge focus:border-brand"
+                }`}
+              />
             </div>
           </Field>
 
@@ -181,7 +265,13 @@ export default function AddClientDialog({
             disabled={!canSave}
             className="rounded-md bg-brand px-3.5 py-1.5 text-[12.5px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {saving ? "Adding..." : "Add client"}
+            {saving
+              ? editing
+                ? "Saving..."
+                : "Adding..."
+              : editing
+                ? "Save changes"
+                : "Add client"}
           </button>
         </footer>
       </form>

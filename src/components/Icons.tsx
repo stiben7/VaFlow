@@ -82,6 +82,13 @@ export const TrashIcon = ({ className }: P) => (
   </S>
 );
 
+export const PencilIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M13.5 3.5l3 3L7 16l-3.5.5L4 13z" />
+    <path d="M11.5 5.5l3 3" />
+  </S>
+);
+
 export const FlagIcon = ({ className }: P) => (
   <S className={className}>
     <path d="M5 17V3.5M5 4h9l-2 3 2 3H5" />
