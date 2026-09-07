@@ -784,12 +784,11 @@ function BlockChip({
         aria-hidden
       />
       <div className="flex items-start gap-1">
-        {block.priority === "high" && (
-          <span
-            className={`mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full ${pr.dot}`}
-            title="High priority"
-          />
-        )}
+        <span
+          className={`mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full ${pr.dot}`}
+          title={`${pr.label} priority`}
+          aria-label={`${pr.label} priority`}
+        />
         <div className="min-w-0 flex-1">
           <div
             className={`truncate font-semibold leading-tight ${accent.text} ${
