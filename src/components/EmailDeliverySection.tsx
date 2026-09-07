@@ -20,12 +20,29 @@ const inputCls =
   "w-full rounded-md border border-edge bg-canvas px-2.5 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15";
 
 export default function EmailDeliverySection() {
-  const { emailConfig, saveEmailConfig, removeEmailConfig } = useStore();
+  const { emailConfig, saveEmailConfig, removeEmailConfig, sendSampleReminders } =
+    useStore();
   const [editing, setEditing] = useState(false);
+  const [sample, setSample] = useState<"idle" | "sending">("idle");
+  const [sampleMsg, setSampleMsg] = useState<{ ok: boolean; text: string } | null>(
+    null
+  );
 
   if (!emailConfig) return null;
 
   const cfg = emailConfig;
+
+  async function runSample() {
+    setSample("sending");
+    setSampleMsg(null);
+    const r = await sendSampleReminders();
+    setSample("idle");
+    setSampleMsg(
+      r.ok
+        ? { ok: true, text: "Sent — check your inbox for two [Sample] emails." }
+        : { ok: false, text: r.error ?? "Couldn't send the samples." }
+    );
+  }
 
   return (
     <div className="rounded-md border border-edge px-3 py-2.5">
@@ -62,6 +79,35 @@ export default function EmailDeliverySection() {
           </button>
         )}
       </div>
+
+      {cfg.configured && !editing && (
+        <div className="mt-2.5 border-t border-edge pt-2.5">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={runSample}
+              disabled={sample === "sending"}
+              className="rounded-md border border-edge px-2.5 py-1 text-[11px] font-medium text-muted hover:bg-sunken hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {sample === "sending" ? "Sending…" : "Send me a sample"}
+            </button>
+            <span className="text-[11px] leading-snug text-faint">
+              Both digests (evening &amp; morning) to your own inbox now.
+            </span>
+          </div>
+          {sampleMsg && (
+            <p
+              className={`mt-1.5 text-[11px] leading-snug ${
+                sampleMsg.ok
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-danger"
+              }`}
+            >
+              {sampleMsg.text}
+            </p>
+          )}
+        </div>
+      )}
 
       {editing && (
         <EmailDeliveryForm

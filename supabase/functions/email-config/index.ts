@@ -14,6 +14,16 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { encryptSecret, bytesToPgBytea } from "./crypto.ts";
 import { sendEmail, type ProviderConfig } from "./send.ts";
 
+// denomailer keeps a background read loop; on a broken SMTP connection it
+// rejects a promise nobody awaits, which the edge runtime treats as fatal and
+// turns into a 503 ("Failed to send a request to the Edge Function"). Swallow
+// it here so the handler's own error response gets through instead -- and so a
+// dangling rejection can't poison a later request on the same warm isolate.
+globalThis.addEventListener("unhandledrejection", (e) => {
+  console.error("unhandledrejection (suppressed):", e.reason);
+  e.preventDefault();
+});
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY =
   Deno.env.get("SUPABASE_ANON_KEY") ??
@@ -235,16 +245,31 @@ Deno.serve(async (req) => {
       return json({ error: upErr.message }, 500);
     }
 
-    // Test send to the caller's own address.
-    const result = await sendEmail(parsed.provider, {
-      to: user.email!,
-      subject: "VAFlow email delivery — test",
-      html:
-        `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;color:#1c1917">` +
-        `<p>This is a test from VAFlow.</p>` +
-        `<p>Your reminder emails will now send through <strong>${parsed.row.provider}</strong> ` +
-        `as <strong>${parsed.row.from_email}</strong>.</p></div>`,
-    });
+    // Test send to the caller's own address. Cap it -- a wedged SMTP socket
+    // would otherwise hang until the platform kills the request with a 503.
+    const result = await Promise.race([
+      sendEmail(parsed.provider, {
+        to: user.email!,
+        subject: "VAFlow email delivery — test",
+        html:
+          `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;color:#1c1917">` +
+          `<p>This is a test from VAFlow.</p>` +
+          `<p>Your reminder emails will now send through <strong>${parsed.row.provider}</strong> ` +
+          `as <strong>${parsed.row.from_email}</strong>.</p></div>`,
+      }),
+      new Promise<{ ok: false; error: string }>((resolve) =>
+        setTimeout(
+          () =>
+            resolve({
+              ok: false,
+              error:
+                "The mail server didn't respond in time. For Gmail, use port " +
+                "465 (SSL/TLS). If that keeps failing, switch to Resend.",
+            }),
+          25_000,
+        )
+      ),
+    ]);
 
     if (result.ok) {
       await admin

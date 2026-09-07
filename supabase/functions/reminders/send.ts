@@ -87,7 +87,14 @@ export async function sendEmail(
         html: msg.html,
       });
     } finally {
-      await client.close();
+      // denomailer's close() on a half-broken connection throws asynchronously
+      // and would otherwise escape as an unhandled rejection that kills the
+      // isolate (a 503, not a readable error).
+      try {
+        await client.close();
+      } catch {
+        /* ignore */
+      }
     }
     return { ok: true };
   } catch (e) {
@@ -104,7 +111,7 @@ function friendlySmtpError(e: unknown): string {
       "port 465. Port 587 (STARTTLS) is unreliable on this host."
     );
   }
-  if (/\b535\b|BadCredentials|not accepted|AuthenticationFailed|Invalid login|auth/i.test(raw)) {
+  if (/\b535\b|\b534\b|BadCredentials|not accepted|AuthenticationFailed|Invalid login|invalid cmd|\bauth\b/i.test(raw)) {
     return (
       "The mail server rejected the login. Gmail needs a 16-character App " +
       "Password (with 2-Step Verification on) — not your normal password."
