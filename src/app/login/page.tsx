@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/client";
 import { GUEST_COOKIE, isSupabaseConfigured } from "@/lib/config";
+import Logo from "@/components/Logo";
 
 const GUEST_MAX_AGE = 60 * 60 * 24 * 365; // a year
 const MIN_PASSWORD = 6; // Supabase's default floor
@@ -97,19 +98,7 @@ function LoginForm() {
   return (
     <div className="grid min-h-dvh place-items-center bg-panel px-4">
       <div className="w-full max-w-[380px]">
-        <div className="mb-6 flex items-center gap-2.5">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-[15px] font-bold text-white">
-            V
-          </div>
-          <div>
-            <div className="text-[15px] font-semibold tracking-tight text-ink">
-              VAFlow
-            </div>
-            <div className="text-[11.5px] text-faint">
-              Your clients, your week.
-            </div>
-          </div>
-        </div>
+        <Logo className="mb-10 h-7 w-auto text-ink" />
 
         <div className="rounded-xl border border-edge bg-canvas p-6 shadow-sm">
           {!isSupabaseConfigured ? (
