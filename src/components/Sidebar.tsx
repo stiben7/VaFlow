@@ -320,9 +320,9 @@ export default function Sidebar() {
                 align="right"
                 triggerAriaLabel="Settings"
                 triggerHref="/settings#profile"
-                triggerClassName="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-sunken hover:text-ink"
+                triggerClassName="shrink-0 rounded-md p-1 text-faint transition-colors duration-200 hover:text-ink"
               >
-                <SettingsIcon className="h-4 w-4 shrink-0 transition-transform duration-300 ease-out group-hover:rotate-90" />
+                <SettingsIcon className="h-4 w-4 shrink-0 transition-transform duration-200 ease-out group-hover:rotate-90" />
               </UserMenu>
             </>
           )
