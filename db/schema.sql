@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.clients (
                             REFERENCES auth.users(id) ON DELETE CASCADE,
   name          TEXT        NOT NULL,
   -- Availed services, e.g. '{Website,Automation,GHL}'. A set, not a tier.
+  -- Five ship as defaults; users may add their own labels, so no allow-list.
   service_tags  TEXT[]      NOT NULL DEFAULT '{}',
   services      TEXT        NOT NULL DEFAULT '',
   strategist    TEXT,
@@ -30,9 +31,6 @@ CREATE TABLE IF NOT EXISTS public.clients (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CONSTRAINT clients_service_tags_chk CHECK (
-    service_tags <@ ARRAY['Admin','Website','Automation','General','GHL']::TEXT[]
-  ),
   CONSTRAINT clients_color_chk CHECK (color IS NULL OR color ~ '^#[0-9a-fA-F]{6}$')
 );
 
@@ -43,11 +41,8 @@ ALTER TABLE public.clients
   ADD COLUMN IF NOT EXISTS color TEXT;
 ALTER TABLE public.clients DROP CONSTRAINT IF EXISTS clients_tier_chk;
 ALTER TABLE public.clients DROP COLUMN IF EXISTS tier;
-DO $$ BEGIN
-  ALTER TABLE public.clients ADD CONSTRAINT clients_service_tags_chk CHECK (
-    service_tags <@ ARRAY['Admin','Website','Automation','General','GHL']::TEXT[]
-  );
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- The service-tag allow-list is gone: users can add their own labels.
+ALTER TABLE public.clients DROP CONSTRAINT IF EXISTS clients_service_tags_chk;
 DO $$ BEGIN
   ALTER TABLE public.clients ADD CONSTRAINT clients_color_chk
     CHECK (color IS NULL OR color ~ '^#[0-9a-fA-F]{6}$');

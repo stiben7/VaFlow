@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore, readLegacyLocalData } from "@/lib/store";
 import { useDrag, DEFAULT_DURATION } from "@/lib/drag";
 import { accentFor, SERVICE_BADGE_OFF, SERVICE_BADGE_ON } from "@/lib/colors";
-import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
+import type { Client, ServiceTag } from "@/lib/types";
 import { downloadBackup, parseBackup, BackupError } from "@/lib/backup";
 import {
   SearchIcon, PlusIcon, CloseIcon, DownloadIcon, UploadIcon, PencilIcon,
@@ -21,7 +21,7 @@ export default function ClientPool({
 }) {
   const {
     clients, blocks, addBlock, ready, mode,
-    importData,
+    serviceTags, importData,
   } = useStore();
   const { startClientDrag, drag } = useDrag();
 
@@ -260,7 +260,7 @@ export default function ClientPool({
 
             {/* Filters */}
             <div className="flex flex-wrap gap-1 px-3.5 pb-2.5">
-              {SERVICE_TAGS.map((t) => {
+              {serviceTags.map((t) => {
                 const on = serviceFilter === t;
                 return (
                   <button

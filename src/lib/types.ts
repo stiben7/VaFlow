@@ -1,22 +1,41 @@
 /**
  * What the account has actually signed up for. A client can have any
  * combination -- e.g. Website + Automation + GHL -- so this is a set, not a
- * single tier.
+ * single tier. The five below ship as defaults; a user can add their own
+ * labels, so this is just `string`.
  */
-export type ServiceTag =
-  | "Admin"
-  | "Website"
-  | "Automation"
-  | "General"
-  | "GHL";
+export type ServiceTag = string;
 
-export const SERVICE_TAGS: ServiceTag[] = [
+export const SERVICE_TAGS = [
   "Admin",
   "Website",
   "Automation",
   "General",
   "GHL",
-];
+] as const;
+
+/**
+ * The default labels plus every custom one currently used by a client,
+ * defaults first and the rest alphabetised. Feed it every client's
+ * `serviceTags`.
+ */
+export function mergeServiceTags(
+  used: readonly (readonly string[])[]
+): string[] {
+  const seen = new Set<string>(SERVICE_TAGS);
+  const extra: string[] = [];
+  for (const list of used) {
+    for (const raw of list) {
+      const t = raw.trim();
+      if (t && !seen.has(t)) {
+        seen.add(t);
+        extra.push(t);
+      }
+    }
+  }
+  extra.sort((a, b) => a.localeCompare(b));
+  return [...SERVICE_TAGS, ...extra];
+}
 
 export type Priority = "high" | "normal" | "low";
 

@@ -142,16 +142,16 @@ body {
    --------------------------------------------------------------------------- */
 .accent-custom {
   background: color-mix(in srgb, var(--accent) 14%, var(--color-canvas));
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-color: var(--accent-line, color-mix(in srgb, var(--accent) 40%, transparent));
 }
 .accent-custom-bar {
-  background: var(--accent);
+  background: var(--accent-line, var(--accent));
 }
 .accent-custom-dot {
   background: var(--accent);
 }
 .accent-custom-text {
-  color: color-mix(in srgb, var(--accent) 60%, var(--color-ink));
+  color: var(--accent-ink, color-mix(in srgb, var(--accent) 60%, var(--color-ink)));
 }
 .accent-custom-ring {
   --tw-ring-color: var(--accent);
