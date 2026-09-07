@@ -207,6 +207,33 @@ export const MonitorIcon = ({ className }: P) => (
   </S>
 );
 
+export const NoteIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M4.5 3.5h11a1 1 0 0 1 1 1v8l-4 4h-8a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1z" />
+    <path d="M16.5 12.5h-4v4M6.5 7.5h7M6.5 10.5h5" />
+  </S>
+);
+
+export const ListBulletIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M7 5.5h9M7 10h9M7 14.5h9" />
+    <path d="M3.5 5.5h0M3.5 10h0M3.5 14.5h0" strokeWidth="2.6" />
+  </S>
+);
+
+export const ListNumberIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M8 5.5h8M8 10h8M8 14.5h8" />
+    <path d="M3 4.2 4.2 3.5v3.5M3 14h1.6c0-1-1.5-1.1-1.5-2 0-.5.5-.9 1.2-.7" strokeWidth="1.3" />
+  </S>
+);
+
+export const GripIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M7 5h0M13 5h0M7 10h0M13 10h0M7 15h0M13 15h0" strokeWidth="2.6" />
+  </S>
+);
+
 export const CopyIcon = ({ className }: P) => (
   <S className={className}>
     <rect x="6.5" y="6.5" width="10" height="10" rx="1.5" />
