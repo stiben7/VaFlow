@@ -83,6 +83,42 @@ export type Profile = {
   avatarUrl: string | null;
 };
 
+export type EmailProvider = "resend" | "smtp";
+
+/**
+ * The user's own email sending provider, as the browser sees it: never the
+ * secret (SMTP password / API key) -- that only ever lives encrypted in the
+ * DB and decrypted inside the Edge Functions.
+ */
+export type EmailConfig = {
+  configured: boolean;
+  provider: EmailProvider | null;
+  fromEmail: string | null;
+  fromName: string | null;
+  smtpHost: string | null;
+  smtpPort: number | null;
+  smtpUser: string | null;
+  smtpSecure: boolean;
+  /** Set after a successful test/send; null means "saved but never verified". */
+  verifiedAt: string | null;
+  lastError: string | null;
+};
+
+/** What the Settings form submits to the `email-config` Edge Function. */
+export type EmailConfigInput = {
+  provider: EmailProvider;
+  fromEmail: string;
+  fromName: string;
+  /** The SMTP password or the Resend API key. */
+  secret: string;
+  smtp?: {
+    host: string;
+    port: number;
+    user: string;
+    secure: boolean;
+  };
+};
+
 export type NewClient = Omit<
   Client,
   "id" | "colorKey" | "color" | "archived"

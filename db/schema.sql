@@ -269,19 +269,82 @@ CREATE POLICY profiles_update_own ON public.profiles
 -- No DELETE policy: a profile dies with its user via ON DELETE CASCADE.
 
 -- ---------------------------------------------------------------------------
--- get_reminder_recipients() -- the Edge Function calls this (as the service
--- role) to get the send list without paging all of auth.users. SECURITY
--- DEFINER so it can read auth.users; locked away from anon/authenticated.
+-- user_email_config -- each user brings their own sending provider (SMTP or
+-- Resend). No config => that user gets no reminder emails.
+--
+-- The secret (SMTP password or Resend API key) is AES-256-GCM encrypted by
+-- the `email-config` Edge Function before it lands here. The ciphertext is
+-- inert without EMAIL_ENC_KEY, which lives only in the Edge Function env.
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_reminder_recipients()
-RETURNS TABLE (user_id UUID, email TEXT, timezone TEXT, digest_hour SMALLINT)
+CREATE TABLE IF NOT EXISTS public.user_email_config (
+  user_id           UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider          TEXT        NOT NULL,               -- 'resend' | 'smtp'
+  from_email        TEXT        NOT NULL,
+  from_name         TEXT        NOT NULL DEFAULT 'VAFlow',
+  -- SMTP-only, all non-secret:
+  smtp_host         TEXT,
+  smtp_port         INTEGER,
+  smtp_user         TEXT,
+  smtp_secure       BOOLEAN     NOT NULL DEFAULT TRUE,   -- implicit TLS (465) vs STARTTLS
+  -- the SMTP password OR the Resend API key, AES-256-GCM:
+  secret_ciphertext BYTEA       NOT NULL,
+  secret_nonce      BYTEA       NOT NULL,                -- 12-byte IV
+  verified_at       TIMESTAMPTZ,                          -- last successful test / send
+  last_error        TEXT,                                 -- last failure, for the UI
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT uec_provider_chk   CHECK (provider IN ('resend', 'smtp')),
+  CONSTRAINT uec_from_email_chk  CHECK (from_email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'),
+  CONSTRAINT uec_smtp_port_chk   CHECK (smtp_port IS NULL OR smtp_port BETWEEN 1 AND 65535)
+);
+
+DROP TRIGGER IF EXISTS uec_touch ON public.user_email_config;
+CREATE TRIGGER uec_touch BEFORE UPDATE ON public.user_email_config
+  FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+ALTER TABLE public.user_email_config ENABLE ROW LEVEL SECURITY;
+
+-- The owner may READ their own row (the secret is only ciphertext, inert
+-- without the key) and DELETE it. No INSERT/UPDATE policy: every write goes
+-- through the `email-config` Edge Function so the secret is always encrypted
+-- and `provider` is always validated.
+DROP POLICY IF EXISTS uec_select_own ON public.user_email_config;
+CREATE POLICY uec_select_own ON public.user_email_config
+  FOR SELECT TO authenticated
+  USING ((SELECT auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS uec_delete_own ON public.user_email_config;
+CREATE POLICY uec_delete_own ON public.user_email_config
+  FOR DELETE TO authenticated
+  USING ((SELECT auth.uid()) = user_id);
+
+-- ---------------------------------------------------------------------------
+-- get_reminder_recipients() -- the Edge Function calls this (as the service
+-- role) to get the send list plus each user's provider config, without
+-- paging all of auth.users. SECURITY DEFINER so it can read auth.users;
+-- locked away from anon/authenticated. The INNER JOIN on user_email_config
+-- means a user with no provider is simply absent -> no email.
+-- ---------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.get_reminder_recipients();
+CREATE FUNCTION public.get_reminder_recipients()
+RETURNS TABLE (
+  user_id UUID, email TEXT, timezone TEXT, digest_hour SMALLINT,
+  provider TEXT, from_email TEXT, from_name TEXT,
+  smtp_host TEXT, smtp_port INTEGER, smtp_user TEXT, smtp_secure BOOLEAN,
+  secret_ciphertext BYTEA, secret_nonce BYTEA
+)
 LANGUAGE sql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-  SELECT p.user_id, u.email::TEXT, p.timezone, p.digest_hour
+  SELECT p.user_id, u.email::TEXT, p.timezone, p.digest_hour,
+         c.provider, c.from_email, c.from_name,
+         c.smtp_host, c.smtp_port, c.smtp_user, c.smtp_secure,
+         c.secret_ciphertext, c.secret_nonce
   FROM public.profiles p
   JOIN auth.users u ON u.id = p.user_id
+  JOIN public.user_email_config c ON c.user_id = p.user_id
   WHERE p.reminders_enabled
     AND p.timezone IS NOT NULL
     AND u.email IS NOT NULL;
@@ -289,7 +352,7 @@ $$;
 
 -- Functions are EXECUTE-able by PUBLIC by default; lock this to the service
 -- role so a signed-in user cannot call /rest/v1/rpc/get_reminder_recipients
--- and read everyone's email + timezone.
+-- and read everyone's email, timezone, and encrypted provider secret.
 REVOKE EXECUTE ON FUNCTION public.get_reminder_recipients() FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.get_reminder_recipients() TO service_role;
 

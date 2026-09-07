@@ -170,7 +170,7 @@ function shell(inner: string, tz: string): string {
     </td></tr>
   </table>
   <div style="max-width:520px;margin:12px auto 0;font-size:11px;color:#a8a29e;text-align:center;">
-    Sent in your timezone (${esc(tz)}). Turn these off in VAFlow &rarr; sidebar &rarr; Email reminders.
+    Sent in your timezone (${esc(tz)}). Manage these in VAFlow &rarr; Settings &rarr; Email reminders.
   </div>
 </body></html>`;
 }
