@@ -82,6 +82,11 @@ export type Profile = {
   digestHour: number;
   /** Public URL of the uploaded avatar, or null for initials. */
   avatarUrl: string | null;
+  /**
+   * Whether an animated (GIF) avatar plays. When false the client freezes it
+   * to the first frame -- a lightweight option for a busy sidebar.
+   */
+  animateAvatar: boolean;
 };
 
 export type EmailProvider = "resend" | "smtp";

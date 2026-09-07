@@ -216,12 +216,17 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   -- Public URL of the uploaded avatar (in the 'avatars' storage bucket),
   -- with a ?v= cache-buster. NULL -> show initials.
   avatar_url        TEXT,
+  -- Whether an animated (GIF) avatar plays. FALSE -> the client freezes it to
+  -- its first frame. Purely a per-user display preference.
+  animate_avatar    BOOLEAN     NOT NULL DEFAULT TRUE,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT profiles_digest_hour_chk CHECK (digest_hour BETWEEN 0 AND 23)
 );
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS animate_avatar BOOLEAN NOT NULL DEFAULT TRUE;
 
 DROP TRIGGER IF EXISTS profiles_touch ON public.profiles;
 CREATE TRIGGER profiles_touch BEFORE UPDATE ON public.profiles

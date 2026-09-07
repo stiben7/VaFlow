@@ -10,6 +10,7 @@ import {
   SearchIcon, PlusIcon, CloseIcon, DownloadIcon, UploadIcon, PencilIcon,
 } from "./Icons";
 import ClientDialog from "./ClientDialog";
+import Tooltip from "./Tooltip";
 
 const LEGACY_DISMISSED = "vaflow.legacyDismissed";
 
@@ -157,24 +158,26 @@ export default function ClientPool({
               Client roster
             </h2>
             <div className="flex items-center gap-0.5">
-              <button
-                onClick={() => downloadBackup(clients, blocks)}
-                disabled={clients.length === 0}
-                title="Export everything as JSON"
-                aria-label="Export backup"
-                className="rounded-md p-1.5 text-faint transition-colors hover:bg-sunken hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
-              >
-                <DownloadIcon className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => fileRef.current?.click()}
-                disabled={busy !== null}
-                title="Import a backup file"
-                aria-label="Import backup"
-                className="rounded-md p-1.5 text-faint transition-colors hover:bg-sunken hover:text-ink disabled:opacity-30"
-              >
-                <UploadIcon className="h-3.5 w-3.5" />
-              </button>
+              <Tooltip label="Download client data" side="bottom">
+                <button
+                  onClick={() => downloadBackup(clients, blocks)}
+                  disabled={clients.length === 0}
+                  aria-label="Download client data"
+                  className="rounded-md p-1.5 text-faint transition-colors hover:bg-sunken hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <DownloadIcon className="h-3.5 w-3.5" />
+                </button>
+              </Tooltip>
+              <Tooltip label="Upload client data" side="bottom">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={busy !== null}
+                  aria-label="Upload client data"
+                  className="rounded-md p-1.5 text-faint transition-colors hover:bg-sunken hover:text-ink disabled:opacity-30"
+                >
+                  <UploadIcon className="h-3.5 w-3.5" />
+                </button>
+              </Tooltip>
               <span className="ml-1 text-[11px] tabular-nums text-faint">
                 {visible.length}
                 {visible.length !== active.length && ` / ${active.length}`}

@@ -44,6 +44,7 @@ export default function ClientDialog({
     Boolean(client?.color && HEX_RE.test(client.color))
   );
   const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
 
   const validHex = HEX_RE.test(hexDraft);
   const customColor = customMode && validHex ? hexDraft : null;
@@ -91,6 +92,7 @@ export default function ClientDialog({
     e.preventDefault();
     if (!canSave) return;
     setSaving(true);
+    setSaveErr(null);
     const patch = {
       name: name.trim(),
       serviceTags,
@@ -99,9 +101,16 @@ export default function ClientDialog({
       colorKey,
       color: customColor,
     };
-    if (editing) await editClient(client.id, patch);
-    else await addClient(patch);
-    onClose();
+    try {
+      if (editing) await editClient(client.id, patch);
+      else await addClient(patch);
+      onClose();
+    } catch (err) {
+      // The optimistic row was already rolled back in the store; surface why
+      // and let the user retry instead of leaving the dialog stuck.
+      setSaveErr(err instanceof Error ? err.message : "Could not save. Try again.");
+      setSaving(false);
+    }
   }
 
   return (
@@ -277,6 +286,9 @@ export default function ClientDialog({
         </div>
 
         <footer className="flex items-center justify-end gap-2 border-t border-edge bg-panel px-5 py-3">
+          {saveErr && (
+            <p className="mr-auto text-[11.5px] text-danger">{saveErr}</p>
+          )}
           <button
             type="button"
             onClick={onClose}
