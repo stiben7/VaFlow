@@ -224,8 +224,8 @@ function ProfileSection({
               Play animated avatar
             </span>
             <span className="block text-[11px] leading-snug text-faint">
-              Off freezes your GIF to its first frame everywhere — lighter on a
-              busy sidebar.
+              Turning this off freezes your GIF to its first frame everywhere,
+              which is lighter on a busy sidebar.
             </span>
           </span>
           <input
@@ -310,7 +310,7 @@ function AccountSection({ email }: { email: string | null }) {
           Current email
         </div>
         <div className="rounded-md border border-edge bg-panel px-2.5 py-2 text-[13px] text-ink">
-          {email ?? "—"}
+          {email ?? "Not set"}
         </div>
       </div>
 

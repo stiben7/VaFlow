@@ -142,7 +142,7 @@ export default function MonthGrid({
                             setOpenId((cur) => (cur === b.id ? null : b.id))
                         )
                       }
-                      title={`${c.name} -- ${formatTime(b.startMin)}`}
+                      title={`${c.name} at ${formatTime(b.startMin)}`}
                       style={accent.style}
                       className={`no-touch-scroll flex cursor-grab items-center gap-1 overflow-hidden rounded border px-1 py-[2px] active:cursor-grabbing ${accent.chip} ${
                         movingId === b.id ? "opacity-30" : "hover:brightness-95"

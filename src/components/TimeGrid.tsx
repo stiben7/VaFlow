@@ -509,7 +509,7 @@ export default function TimeGrid({ days }: { days: Date[] }) {
                     <div
                       onPointerDown={(e) => startColResize(e, i)}
                       onDoubleClick={resetColWidths}
-                      title="Drag to resize -- double-click to reset"
+                      title="Drag to resize. Double-click to reset."
                       className="absolute right-0 top-0 z-20 h-full w-2 cursor-col-resize touch-none hover:bg-brand/25"
                     />
                   </div>

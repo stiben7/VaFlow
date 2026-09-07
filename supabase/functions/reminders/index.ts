@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
       if (list.length > 0 && (await claim(admin, r.user_id, tomorrow, "day_before"))) {
         const res = await sendEmail(providerCfg, {
           to: r.email,
-          subject: `Your priority clients for tomorrow — ${prettyDate(tomorrow)}`,
+          subject: `Your priority clients for tomorrow, ${prettyDate(tomorrow)}`,
           html: eveningDigestHtml(nameFromEmail(r.email), tomorrow, list, r.timezone),
         });
         await finish(admin, r.user_id, tomorrow, "day_before", res);
@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
         if (minsUntil <= 60 && minsUntil > 0 && (await claim(admin, r.user_id, L.date, "morning"))) {
           const res = await sendEmail(providerCfg, {
             to: r.email,
-            subject: `Your priority clients for today — first at ${formatTime(today[0].start_min)}`,
+            subject: `Your priority clients for today, first at ${formatTime(today[0].start_min)}`,
             html: morningDigestHtml(nameFromEmail(r.email), L.date, today, r.timezone),
           });
           await finish(admin, r.user_id, L.date, "morning", res);
@@ -290,7 +290,7 @@ function sampleBlocks(day: string): BlockRow[] {
     {
       id: "sample-1", user_id: "", day,
       start_min: 9 * 60, duration_min: 60, priority: "high",
-      note: "Kickoff call — walk through the brief",
+      note: "Kickoff call to walk through the brief",
       clients: { name: "Rosewood Bridal" },
     },
     {
@@ -380,12 +380,12 @@ async function sendPreview(
 
   const evening = await sendEmail(providerCfg, {
     to: userEmail,
-    subject: `[Sample] Your priority clients for tomorrow — ${prettyDate(tomorrow)}`,
+    subject: `[Sample] Your priority clients for tomorrow, ${prettyDate(tomorrow)}`,
     html: eveningDigestHtml(name, tomorrow, eveningList, tz),
   });
   const morning = await sendEmail(providerCfg, {
     to: userEmail,
-    subject: `[Sample] Your priority clients for today — first at ${formatTime(morningList[0].start_min)}`,
+    subject: `[Sample] Your priority clients for today, first at ${formatTime(morningList[0].start_min)}`,
     html: morningDigestHtml(name, L.date, morningList, tz),
   });
 

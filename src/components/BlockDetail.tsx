@@ -164,7 +164,7 @@ export default function BlockDetail({
         <div className="mt-2.5 flex items-center gap-1.5 text-[11.5px] text-muted">
           <ClockIcon className="h-3.5 w-3.5" />
           <span className="tabular-nums">
-            {formatTime(block.startMin)} &ndash; {formatTime(end)}
+            {formatTime(block.startMin)} to {formatTime(end)}
           </span>
           <span className="text-faint">
             &middot; {formatDuration(block.durationMin)}
