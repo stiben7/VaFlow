@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { accentFor, SERVICE_BADGE_OFF, SERVICE_BADGE_ON } from "@/lib/colors";
-import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
+import type { Client, ServiceTag } from "@/lib/types";
 import ClientDialog from "@/components/ClientDialog";
 import {
   PlusIcon,
@@ -17,7 +17,7 @@ import {
 } from "@/components/Icons";
 
 export default function ClientsPage() {
-  const { clients, blocks, ready, removeClient } = useStore();
+  const { clients, blocks, ready, removeClient, serviceTags } = useStore();
   const [q, setQ] = useState("");
   const [service, setService] = useState<ServiceTag | null>(null);
   const [adding, setAdding] = useState(false);
@@ -106,7 +106,7 @@ export default function ClientsPage() {
         >
           All
         </button>
-        {SERVICE_TAGS.map((t) => {
+        {serviceTags.map((t) => {
           const count = clients.filter(
             (c) => !c.archived && c.serviceTags.includes(t)
           ).length;

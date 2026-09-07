@@ -19,7 +19,7 @@ import type {
   ServiceTag,
   Priority,
 } from "./types";
-import { SERVICE_TAGS } from "./types";
+import { mergeServiceTags } from "./types";
 import { getSupabase } from "./supabase/client";
 import { isSupabaseConfigured } from "./config";
 import { planMerge, type MergePlan } from "./backup";
@@ -73,9 +73,17 @@ type ClientRow = {
   color_key: number; color: string | null; archived: boolean;
 };
 
-const SERVICE_SET = new Set<string>(SERVICE_TAGS);
-const cleanTags = (v: unknown): ServiceTag[] =>
-  Array.isArray(v) ? (v.filter((t) => SERVICE_SET.has(t)) as ServiceTag[]) : [];
+/** Any non-empty label is allowed (users add their own); trim and dedupe. */
+const cleanTags = (v: unknown): ServiceTag[] => {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const raw of v) {
+    if (typeof raw !== "string") continue;
+    const t = raw.trim().slice(0, 40);
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 24);
+};
 
 /**
  * Bring a client object read from localStorage up to the current shape.
@@ -194,6 +202,8 @@ type Store = {
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
 
   clientById: (id: string) => Client | undefined;
+  /** Default service labels plus every custom one in use, defaults first. */
+  serviceTags: string[];
   /** Bulk insert used by backup import. */
   importData: (incoming: { clients: Client[]; blocks: Block[] }) => Promise<MergePlan>;
 };
@@ -485,20 +495,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const clientById = useCallback((id: string) => byId.get(id), [byId]);
 
+  const serviceTags = useMemo(
+    () => mergeServiceTags(clients.map((c) => c.serviceTags)),
+    [clients]
+  );
+
   const value = useMemo<Store>(
     () => ({
       clients, blocks, ready, mode, user, profile, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile,
-      clientById, importData,
+      clientById, serviceTags, importData,
     }),
     [
       clients, blocks, ready, mode, user, profile, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile,
-      clientById, importData,
+      clientById, serviceTags, importData,
     ]
   );
 

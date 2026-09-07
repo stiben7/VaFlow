@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { ACCENTS, SERVICE_BADGE_OFF, SERVICE_BADGE_ON, HEX_RE } from "@/lib/colors";
-import { SERVICE_TAGS, type Client, type ServiceTag } from "@/lib/types";
-import { CloseIcon } from "./Icons";
+import { mergeServiceTags, type Client, type ServiceTag } from "@/lib/types";
+import { CloseIcon, PlusIcon } from "./Icons";
 
 /**
  * Add a new client, or -- when `client` is passed -- edit an existing one.
@@ -18,13 +18,14 @@ export default function ClientDialog({
   client?: Client;
   onClose: () => void;
 }) {
-  const { addClient, editClient, clients } = useStore();
+  const { addClient, editClient, clients, serviceTags: knownTags } = useStore();
   const editing = client != null;
 
   const [name, setName] = useState(client?.name ?? "");
   const [serviceTags, setServiceTags] = useState<ServiceTag[]>(
     client?.serviceTags ?? []
   );
+  const [newTag, setNewTag] = useState("");
   const [strategist, setStrategist] = useState(client?.strategist ?? "");
   const [basecampUrl, setBasecampUrl] = useState(client?.basecampUrl ?? "");
   const [services, setServices] = useState(client?.services ?? "");
@@ -52,6 +53,17 @@ export default function ClientDialog({
     setServiceTags((cur) =>
       cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]
     );
+
+  // Every label to show as a chip: the known ones plus any this client already
+  // carries, plus one being typed.
+  const tagChoices = mergeServiceTags([knownTags, serviceTags]);
+
+  function addTag() {
+    const t = newTag.trim().slice(0, 40);
+    setNewTag("");
+    if (!t) return;
+    setServiceTags((cur) => (cur.includes(t) ? cur : [...cur, t]));
+  }
 
   function applyHex(value: string) {
     setHexDraft(value.startsWith("#") ? value : `#${value}`);
@@ -143,7 +155,7 @@ export default function ClientDialog({
 
           <Field label="Availed services">
             <div className="flex flex-wrap gap-1.5">
-              {SERVICE_TAGS.map((t) => {
+              {tagChoices.map((t) => {
                 const on = serviceTags.includes(t);
                 return (
                   <button
@@ -161,6 +173,30 @@ export default function ClientDialog({
                   </button>
                 );
               })}
+            </div>
+            <div className="mt-1.5 flex gap-1.5">
+              <input
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTag();
+                  }
+                }}
+                placeholder="Add a service..."
+                maxLength={40}
+                className="min-w-0 flex-1 rounded-md border border-edge bg-canvas px-2 py-1 text-[11.5px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
+              />
+              <button
+                type="button"
+                onClick={addTag}
+                disabled={!newTag.trim()}
+                className="flex items-center gap-1 rounded-md border border-edge px-2 py-1 text-[11.5px] font-medium text-muted transition-colors hover:bg-sunken hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <PlusIcon />
+                Add
+              </button>
             </div>
           </Field>
 

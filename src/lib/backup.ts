@@ -1,8 +1,6 @@
-import type { Block, Client, ServiceTag, Priority } from "./types";
-import { SERVICE_TAGS, PRIORITIES } from "./types";
+import type { Block, Client, Priority } from "./types";
+import { PRIORITIES } from "./types";
 import { HEX_RE } from "./colors";
-
-const SERVICE_SET = new Set<string>(SERVICE_TAGS);
 
 export const BACKUP_VERSION = 1;
 
@@ -75,7 +73,10 @@ export function parseBackup(text: string): { clients: Client[]; blocks: Block[] 
     const name = String(c?.name ?? "").trim();
     if (!name) continue;
     const serviceTags = Array.isArray(c?.serviceTags)
-      ? (c.serviceTags.filter((t) => SERVICE_SET.has(t)) as ServiceTag[])
+      ? c.serviceTags
+          .filter((t): t is string => typeof t === "string")
+          .map((t) => t.trim().slice(0, 40))
+          .filter(Boolean)
       : [];
     const color =
       typeof c?.color === "string" && HEX_RE.test(c.color) ? c.color : null;

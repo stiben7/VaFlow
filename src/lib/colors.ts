@@ -31,6 +31,15 @@ export type Accent = {
 
 export const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
+/** True for white and pale shades -- anything that needs a dark outline to show. */
+function isLightHex(hex: string): boolean {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.78;
+}
+
 export const ACCENTS: Accent[] = [
   {
     chip: "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900",
@@ -110,8 +119,15 @@ export function accentFor(
     return ACCENTS[((input % ACCENTS.length) + ACCENTS.length) % ACCENTS.length];
   }
   if (input.color && HEX_RE.test(input.color)) {
-    const style = { "--accent": input.color } as CSSProperties;
-    return { ...CUSTOM_ACCENT, style };
+    const style: Record<string, string> = { "--accent": input.color };
+    if (isLightHex(input.color)) {
+      // A pale / near-white accent: the derived border and text would wash
+      // out against the canvas, so pin them to the theme ink (near-black on
+      // light, near-white on dark) -- the border and label stay visible.
+      style["--accent-line"] = "var(--color-ink)";
+      style["--accent-ink"] = "var(--color-ink)";
+    }
+    return { ...CUSTOM_ACCENT, style: style as CSSProperties };
   }
   return ACCENTS[
     ((input.colorKey % ACCENTS.length) + ACCENTS.length) % ACCENTS.length
@@ -133,6 +149,6 @@ export const PRIORITY_META: Record<
   { label: string; dot: string; flag: string }
 > = {
   high: { label: "High", dot: "bg-red-500", flag: "text-red-500" },
-  normal: { label: "Normal", dot: "bg-slate-300", flag: "text-slate-400" },
-  low: { label: "Low", dot: "bg-slate-200", flag: "text-slate-300" },
+  normal: { label: "Medium", dot: "bg-orange-500", flag: "text-orange-500" },
+  low: { label: "Low", dot: "bg-green-500", flag: "text-green-500" },
 };
