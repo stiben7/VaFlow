@@ -60,11 +60,22 @@ export async function sendEmail(
       };
     }
 
+    // TLS mode is decided by the port, not the stored checkbox: implicit TLS
+    // on 465, STARTTLS on 587/25. The runtime's STARTTLS is unreliable, so a
+    // mismatched flag would otherwise surface as a cryptic "InvalidContentType".
+    // Only a non-standard port falls back to the stored flag.
+    const implicitTls =
+      cfg.port === 465
+        ? true
+        : cfg.port === 587 || cfg.port === 25
+          ? false
+          : cfg.secure;
+
     const client = new SMTPClient({
       connection: {
         hostname: cfg.host,
         port: cfg.port,
-        tls: cfg.secure,
+        tls: implicitTls,
         auth: { username: cfg.user, password: cfg.pass },
       },
     });
@@ -80,9 +91,27 @@ export async function sendEmail(
     }
     return { ok: true };
   } catch (e) {
-    return {
-      ok: false,
-      error: String(e instanceof Error ? e.message : e).slice(0, 300),
-    };
+    return { ok: false, error: friendlySmtpError(e) };
   }
+}
+
+/** Turn denomailer / TLS internals into something a user can act on. */
+function friendlySmtpError(e: unknown): string {
+  const raw = String(e instanceof Error ? e.message : e);
+  if (/InvalidContentType|corrupt message|BadRecordMac|UnexpectedEof|handshake/i.test(raw)) {
+    return (
+      "Couldn't open a secure connection to the mail server. For Gmail use " +
+      "port 465. Port 587 (STARTTLS) is unreliable on this host."
+    );
+  }
+  if (/\b535\b|BadCredentials|not accepted|AuthenticationFailed|Invalid login|auth/i.test(raw)) {
+    return (
+      "The mail server rejected the login. Gmail needs a 16-character App " +
+      "Password (with 2-Step Verification on) — not your normal password."
+    );
+  }
+  if (/getaddrinfo|dns|ENOTFOUND|failed to lookup/i.test(raw)) {
+    return `Couldn't resolve the SMTP host. Check the hostname. (${raw.slice(0, 80)})`;
+  }
+  return raw.slice(0, 300);
 }

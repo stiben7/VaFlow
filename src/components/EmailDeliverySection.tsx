@@ -14,6 +14,8 @@ import type { EmailConfigInput, EmailProvider } from "@/lib/types";
 import { EyeIcon, EyeOffIcon } from "./Icons";
 import Select from "./Select";
 
+type Enc = "ssl" | "starttls" | "none";
+
 const inputCls =
   "w-full rounded-md border border-edge bg-canvas px-2.5 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15";
 
@@ -97,9 +99,26 @@ function EmailDeliveryForm({
   const [secret, setSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [smtpHost, setSmtpHost] = useState(current.smtpHost ?? "");
-  const [smtpPort, setSmtpPort] = useState(String(current.smtpPort ?? 587));
+  const [smtpPort, setSmtpPort] = useState(String(current.smtpPort ?? 465));
   const [smtpUser, setSmtpUser] = useState(current.smtpUser ?? "");
-  const [smtpSecure, setSmtpSecure] = useState(current.smtpSecure);
+
+  // Encryption drives the port and the `secure` flag together so the two can't
+  // disagree (a 587 + "TLS on" mismatch is the usual Gmail failure).
+  const encFor = (port: number): Enc =>
+    port === 587 ? "starttls" : port === 25 ? "none" : "ssl";
+  const [enc, setEnc] = useState<Enc>(encFor(current.smtpPort ?? 465));
+
+  function pickEnc(next: Enc) {
+    setEnc(next);
+    setSmtpPort(next === "ssl" ? "465" : next === "starttls" ? "587" : "25");
+  }
+
+  function fillGmail() {
+    setSmtpHost("smtp.gmail.com");
+    pickEnc("ssl");
+  }
+
+  const smtpSecure = enc === "ssl";
 
   const [state, setState] = useState<"idle" | "saving">("idle");
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(
@@ -114,11 +133,20 @@ function EmailDeliveryForm({
     }
     setState("saving");
     setResult(null);
+
+    // Gmail App Passwords are shown in four space-separated groups; the spaces
+    // are cosmetic and SMTP AUTH rejects them.
+    const isGmail = /(^|\.)gmail\.com$/i.test(smtpHost.trim());
+    const cleanedSecret =
+      provider === "smtp" && isGmail
+        ? secret.replace(/\s+/g, "")
+        : secret.trim();
+
     const input: EmailConfigInput = {
       provider,
       fromEmail: fromEmail.trim(),
       fromName: fromName.trim() || "VAFlow",
-      secret: secret.trim(),
+      secret: cleanedSecret,
       ...(provider === "smtp"
         ? {
             smtp: {
@@ -157,35 +185,65 @@ function EmailDeliveryForm({
       </Select>
 
       {provider === "smtp" && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-faint">SMTP server</span>
+            <button
+              type="button"
+              onClick={fillGmail}
+              className="rounded-md border border-edge px-2 py-0.5 text-[11px] font-medium text-muted hover:bg-sunken hover:text-ink"
+            >
+              Use Gmail
+            </button>
+          </div>
+
           <input
             value={smtpHost}
             onChange={(e) => setSmtpHost(e.target.value)}
-            placeholder="smtp.host.com"
-            className={`col-span-2 ${inputCls}`}
-          />
-          <input
-            value={smtpPort}
-            onChange={(e) => setSmtpPort(e.target.value.replace(/\D/g, ""))}
-            placeholder="587"
-            inputMode="numeric"
+            placeholder="smtp.gmail.com"
             className={inputCls}
           />
+
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={enc}
+              onChange={(e) => pickEnc(e.target.value as Enc)}
+              fullWidth
+              aria-label="Encryption"
+            >
+              <option value="ssl">SSL / TLS</option>
+              <option value="starttls">STARTTLS</option>
+              <option value="none">None</option>
+            </Select>
+            <input
+              value={smtpPort}
+              onChange={(e) => setSmtpPort(e.target.value.replace(/\D/g, ""))}
+              placeholder="465"
+              inputMode="numeric"
+              aria-label="Port"
+              className={inputCls}
+            />
+          </div>
+
           <input
             value={smtpUser}
             onChange={(e) => setSmtpUser(e.target.value)}
-            placeholder="username"
-            className={`col-span-3 ${inputCls}`}
+            placeholder="you@gmail.com"
+            className={inputCls}
           />
-          <label className="col-span-3 flex cursor-pointer items-center gap-1.5 text-[11px] text-muted">
-            <input
-              type="checkbox"
-              checked={smtpSecure}
-              onChange={(e) => setSmtpSecure(e.target.checked)}
-              className="h-3 w-3 accent-[var(--color-brand)]"
-            />
-            Use TLS (port 465). Off = STARTTLS (587).
-          </label>
+
+          <p className="text-[11px] leading-snug text-faint">
+            Gmail: <strong>SSL / TLS on port 465</strong>, and a{" "}
+            <a
+              href="https://myaccount.google.com/apppasswords"
+              target="_blank"
+              rel="noreferrer"
+              className="text-brand hover:underline"
+            >
+              Google App Password
+            </a>{" "}
+            below (needs 2-Step Verification) — not your normal password.
+          </p>
         </div>
       )}
 
@@ -195,7 +253,9 @@ function EmailDeliveryForm({
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
           placeholder={
-            provider === "resend" ? "Resend API key (re_...)" : "SMTP password"
+            provider === "resend"
+              ? "Resend API key (re_...)"
+              : "SMTP password / Gmail App Password"
           }
           autoComplete="off"
           className={`${inputCls} pr-8`}
