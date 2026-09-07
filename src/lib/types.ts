@@ -46,9 +46,10 @@ export type Client = {
   name: string;
   /** Availed services. Empty is allowed -- a client added before any were picked. */
   serviceTags: ServiceTag[];
-  services: string;
-  strategist: string | null;
-  basecampUrl: string | null;
+  /** Free text: deliverables, extra links, anything. URLs render clickable. */
+  notes: string;
+  /** Project / workspace URL (Basecamp, Teamwork, ClickUp, ...). */
+  link: string | null;
   /** Index into ACCENTS. Stable per client so the colour never shuffles. */
   colorKey: number;
   /** Custom hex ("#rrggbb"); when set it overrides the preset at colorKey. */
