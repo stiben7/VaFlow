@@ -387,7 +387,11 @@ export default function ClientPool({
 
       {adding && <ClientDialog onClose={() => setAdding(false)} />}
       {editingClient && (
-        <ClientDialog client={editingClient} onClose={() => setEditId(null)} />
+        <ClientDialog
+          key={editingClient.id}
+          client={editingClient}
+          onClose={() => setEditId(null)}
+        />
       )}
     </>
   );

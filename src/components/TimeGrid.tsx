@@ -17,6 +17,7 @@ import {
   toKey,
 } from "@/lib/date";
 import BlockDetail from "./BlockDetail";
+import { NoteIcon } from "./Icons";
 
 const HOUR_H = 52;
 const GUTTER_W = 58;
@@ -684,7 +685,10 @@ export default function TimeGrid({ days }: { days: Date[] }) {
       </div>
 
       {openId && (
-        <BlockDetail blockId={openId} onClose={clearSelection} />
+        // `key` forces a fresh instance per block: switching blocks unmounts
+        // the old card (flushing its note) and mounts a clean one, so a
+        // half-typed note never bleeds onto the next client.
+        <BlockDetail key={openId} blockId={openId} onClose={clearSelection} />
       )}
 
       {selected.size > 1 && (
@@ -775,9 +779,9 @@ function BlockChip({
       onMouseLeave={(e) => {
         e.currentTarget.style.zIndex = String((selected ? 40 : 10) + lane);
       }}
-      title={`${clientName} -- ${formatTime(block.startMin)} to ${formatTime(
+      title={`${clientName}, ${formatTime(block.startMin)} to ${formatTime(
         block.startMin + block.durationMin
-      )}`}
+      )}${block.note ? `\n${block.note}` : ""}`}
     >
       <span
         className={`absolute inset-y-0 left-0 w-[3px] ${accent.bar}`}
@@ -804,6 +808,12 @@ function BlockChip({
             </div>
           )}
         </div>
+        {block.note && (
+          <NoteIcon
+            aria-label="Has a note"
+            className={`${tiny ? "mt-[3px] h-2.5 w-2.5" : "mt-[4px] h-3 w-3"} shrink-0 ${accent.text} opacity-55`}
+          />
+        )}
       </div>
 
       {/* resize handle */}
