@@ -5,6 +5,14 @@ import { useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabase/client";
 import { GUEST_COOKIE, isSupabaseConfigured } from "@/lib/config";
 import Logo from "@/components/Logo";
+import {
+  MailIcon,
+  LockIcon,
+  UserIcon,
+  EnterDoorIcon,
+  EyeIcon,
+  EyeOffIcon,
+} from "@/components/Icons";
 
 const GUEST_MAX_AGE = 60 * 60 * 24 * 365; // a year
 const MIN_PASSWORD = 6; // Supabase's default floor
@@ -27,6 +35,7 @@ function LoginForm() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -98,7 +107,7 @@ function LoginForm() {
   return (
     <div className="grid min-h-dvh place-items-center bg-panel px-4">
       <div className="w-full max-w-[380px]">
-        <Logo className="mb-10 h-7 w-auto text-ink" />
+        <Logo className="mx-auto mb-10 h-7 w-auto text-ink" />
 
         <div className="rounded-xl border border-edge bg-canvas p-6 shadow-sm">
           {!isSupabaseConfigured ? (
@@ -113,17 +122,18 @@ function LoginForm() {
           ) : (
             <>
               <form onSubmit={submit}>
-                <h1 className="text-[14px] font-semibold text-ink">
+                <h1 className="text-center text-[20px] font-semibold tracking-tight text-ink">
                   {mode === "signup" ? "Create your account" : "Sign in"}
                 </h1>
-                <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
-                  {mode === "signup"
-                    ? "Your clients and schedule are saved to your account."
-                    : "Welcome back."}
-                </p>
+                {mode === "signup" && (
+                  <p className="mt-1 text-center text-[12.5px] leading-relaxed text-muted">
+                    Your clients and schedule are saved to your account.
+                  </p>
+                )}
 
-                <label className="mt-4 block">
-                  <span className="mb-1 block text-[11.5px] font-medium text-muted">
+                <label className="mt-5 block">
+                  <span className="mb-1 flex items-center gap-1.5 text-[11.5px] font-medium text-muted">
+                    <MailIcon className="h-3.5 w-3.5" />
                     Email
                   </span>
                   <input
@@ -139,25 +149,40 @@ function LoginForm() {
                 </label>
 
                 <label className="mt-3 block">
-                  <span className="mb-1 block text-[11.5px] font-medium text-muted">
+                  <span className="mb-1 flex items-center gap-1.5 text-[11.5px] font-medium text-muted">
+                    <LockIcon className="h-3.5 w-3.5" />
                     Password
                   </span>
-                  <input
-                    type="password"
-                    required
-                    minLength={MIN_PASSWORD}
-                    autoComplete={
-                      mode === "signup" ? "new-password" : "current-password"
-                    }
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={
-                      mode === "signup"
-                        ? `At least ${MIN_PASSWORD} characters`
-                        : "Your password"
-                    }
-                    className="w-full rounded-md border border-edge bg-canvas px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPw ? "text" : "password"}
+                      required
+                      minLength={MIN_PASSWORD}
+                      autoComplete={
+                        mode === "signup" ? "new-password" : "current-password"
+                      }
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={
+                        mode === "signup"
+                          ? `At least ${MIN_PASSWORD} characters`
+                          : "Your password"
+                      }
+                      className="w-full rounded-md border border-edge bg-canvas px-2.5 py-2 pr-9 text-[13px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((s) => !s)}
+                      aria-label={showPw ? "Hide password" : "Show password"}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-faint hover:text-ink"
+                    >
+                      {showPw ? (
+                        <EyeOffIcon className="h-4 w-4" />
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </label>
 
                 {(error || linkError) && (
@@ -174,13 +199,16 @@ function LoginForm() {
                 <button
                   type="submit"
                   disabled={busy || !email.trim() || !password}
-                  className="mt-4 w-full rounded-md bg-brand py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mt-4 flex w-full items-center justify-between rounded-md bg-brand px-3.5 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {busy
-                    ? "Working..."
-                    : mode === "signup"
-                      ? "Create account"
-                      : "Sign in"}
+                  <span>
+                    {busy
+                      ? "Working..."
+                      : mode === "signup"
+                        ? "Create account"
+                        : "Sign in"}
+                  </span>
+                  <EnterDoorIcon className="h-4 w-4" />
                 </button>
               </form>
 
@@ -228,13 +256,14 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={continueAsGuest}
-                className="w-full rounded-md border border-edge bg-canvas py-2 text-[13px] font-medium text-ink transition-colors hover:bg-sunken"
+                className="flex w-full items-center justify-between rounded-md border border-edge bg-canvas px-3.5 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-sunken"
               >
-                Continue as guest
+                <span>Continue as guest</span>
+                <UserIcon className="h-4 w-4" />
               </button>
               <p className="mt-2 text-[11px] leading-snug text-faint">
-                No account. Your clients and schedule stay in this browser only
-                &mdash; you can sign in later to sync them.
+                No account. Your clients and schedule stay in this browser only.
+                You can sign in later to sync them.
               </p>
             </>
           )}
