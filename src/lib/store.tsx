@@ -15,6 +15,7 @@ import type {
   Client,
   NewBlock,
   NewClient,
+  Profile,
   ServiceTag,
   Priority,
 } from "./types";
@@ -146,6 +147,18 @@ const fromBlock = (b: Block) => ({
   note: b.note,
 });
 
+type ProfileRow = {
+  timezone: string | null;
+  reminders_enabled: boolean;
+  digest_hour: number;
+};
+
+const toProfile = (r: ProfileRow): Profile => ({
+  timezone: r.timezone ?? null,
+  remindersEnabled: Boolean(r.reminders_enabled),
+  digestHour: Number(r.digest_hour),
+});
+
 /** Next free accent, so colours spread out instead of clumping. */
 function nextColorKey(clients: Client[]): number {
   const counts = new Array(8).fill(0);
@@ -166,6 +179,8 @@ type Store = {
   ready: boolean;
   mode: Mode;
   user: User | null;
+  /** Per-user settings. Cloud mode only; null until loaded (or in local mode). */
+  profile: Profile | null;
   error: string | null;
 
   addClient: (input: NewClient) => Promise<Client>;
@@ -175,6 +190,8 @@ type Store = {
   addBlock: (input: NewBlock) => Promise<Block>;
   editBlock: (id: string, patch: Partial<NewBlock>) => Promise<void>;
   removeBlock: (id: string) => Promise<void>;
+
+  updateProfile: (patch: Partial<Profile>) => Promise<void>;
 
   clientById: (id: string) => Client | undefined;
   /** Bulk insert used by backup import. */
@@ -194,6 +211,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Resolved during boot: "cloud" once a signed-in user is confirmed,
@@ -254,6 +272,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setClients((cRes.data as ClientRow[]).map(toClient));
       setBlocks((bRes.data as BlockRow[]).map(toBlock));
       setReady(true);
+
+      // Capture the browser's timezone so the reminder job knows when
+      // "an hour before 9am" is. Upserting only user_id + timezone leaves the
+      // reminders toggle and digest_hour untouched; it also creates the row
+      // for users who predate this table. Non-critical -- never blocks `ready`.
+      void (async () => {
+        try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const { data } = await supabase
+            .from("profiles")
+            .upsert(
+              { user_id: userData.user!.id, timezone: tz },
+              { onConflict: "user_id" }
+            )
+            .select("timezone, reminders_enabled, digest_hour")
+            .single();
+          if (!cancelled && data) setProfile(toProfile(data as ProfileRow));
+        } catch {
+          // A missing profiles table or a transient failure just means no
+          // reminder settings this session; the feature stays dormant.
+        }
+      })();
     }
 
     void boot();
@@ -377,6 +417,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // ---- profile ---------------------------------------------------------
+  const updateProfile = useCallback(
+    async (patch: Partial<Profile>) => {
+      setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
+      if (modeRef.current !== "cloud") return;
+      const uid = user?.id;
+      if (!uid) return;
+      const row: Record<string, unknown> = {};
+      if (patch.timezone !== undefined) row.timezone = patch.timezone;
+      if (patch.remindersEnabled !== undefined)
+        row.reminders_enabled = patch.remindersEnabled;
+      if (patch.digestHour !== undefined) row.digest_hour = patch.digestHour;
+      if (Object.keys(row).length === 0) return;
+      const { error: err } = await getSupabase()!
+        .from("profiles").update(row).eq("user_id", uid);
+      if (err) setError(err.message);
+    },
+    [user]
+  );
+
   // ---- bulk --------------------------------------------------------------
   const importData = useCallback(
     async (incoming: { clients: Client[]; blocks: Block[] }): Promise<MergePlan> => {
@@ -427,15 +487,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      clients, blocks, ready, mode, user, error,
+      clients, blocks, ready, mode, user, profile, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
+      updateProfile,
       clientById, importData,
     }),
     [
-      clients, blocks, ready, mode, user, error,
+      clients, blocks, ready, mode, user, profile, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
+      updateProfile,
       clientById, importData,
     ]
   );

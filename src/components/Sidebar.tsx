@@ -42,7 +42,8 @@ const THEME_OPTIONS: { value: ThemeChoice; label: string; Icon: typeof SunIcon }
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { clients, blocks, ready, user, mode } = useStore();
+  const { clients, blocks, ready, user, mode, profile, updateProfile } =
+    useStore();
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -251,6 +252,28 @@ export default function Sidebar() {
             <div className="truncate text-[11px] text-faint">{displaySub}</div>
           </div>
         </div>
+        {mode === "cloud" && profile && (
+          <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-md border border-edge px-2 py-1.5">
+            <input
+              type="checkbox"
+              checked={profile.remindersEnabled}
+              onChange={(e) =>
+                void updateProfile({ remindersEnabled: e.target.checked })
+              }
+              className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-brand)]"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11.5px] font-medium text-ink">
+                Email reminders
+              </span>
+              <span className="block text-[10.5px] leading-snug text-faint">
+                {profile.timezone
+                  ? `Tomorrow's clients each evening, and today's an hour before the first. Timezone: ${profile.timezone}`
+                  : "Open the app on the device you use most so we can detect your timezone."}
+              </span>
+            </span>
+          </label>
+        )}
         {mode === "cloud" && (
           <form action="/auth/signout" method="post">
             <button
