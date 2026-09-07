@@ -44,6 +44,34 @@ export const UsersIcon = ({ className }: P) => (
   </S>
 );
 
+export const UserIcon = ({ className }: P) => (
+  <S className={className}>
+    <circle cx="10" cy="6.5" r="3.25" />
+    <path d="M3.5 17c0-3.3 2.9-5.5 6.5-5.5s6.5 2.2 6.5 5.5" />
+  </S>
+);
+
+export const MailIcon = ({ className }: P) => (
+  <S className={className}>
+    <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
+    <path d="M3 6l7 5 7-5" />
+  </S>
+);
+
+export const LockIcon = ({ className }: P) => (
+  <S className={className}>
+    <rect x="4" y="9" width="12" height="8" rx="1.6" />
+    <path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9" />
+  </S>
+);
+
+export const EnterDoorIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M11 3h4.5a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H11" />
+    <path d="M4 10h8m0 0-3-3m3 3-3 3" />
+  </S>
+);
+
 export const PlusIcon = ({ className }: P) => (
   <S className={className}>
     <path d="M10 4.5v11M4.5 10h11" />
