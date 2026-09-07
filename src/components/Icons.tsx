@@ -90,6 +90,12 @@ export const ChevronRight = ({ className }: P) => (
   </S>
 );
 
+export const ChevronDownIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M5 8l5 5 5-5" />
+  </S>
+);
+
 export const SearchIcon = ({ className }: P) => (
   <S className={className}>
     <circle cx="8.75" cy="8.75" r="5.25" />

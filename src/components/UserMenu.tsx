@@ -32,12 +32,19 @@ export default function UserMenu({
   align = "left",
   triggerClassName,
   triggerAriaLabel,
+  triggerHref,
   children,
 }: {
   guest: boolean;
   align?: "left" | "right";
   triggerClassName?: string;
   triggerAriaLabel: string;
+  /**
+   * When set, clicking the trigger navigates here instead of toggling the
+   * menu. Hover still opens the menu -- the click is the primary action, the
+   * menu is the shortcut layer.
+   */
+  triggerHref?: string;
   children: React.ReactNode;
 }) {
   const { theme, setTheme } = useTheme();
@@ -88,16 +95,29 @@ export default function UserMenu({
       onPointerEnter={() => setOpen(true)}
       onPointerLeave={() => setOpen(false)}
     >
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={triggerAriaLabel}
-        onClick={() => setOpen((o) => !o)}
-        className={triggerClassName}
-      >
-        {children}
-      </button>
+      {triggerHref ? (
+        <Link
+          href={triggerHref}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={triggerAriaLabel}
+          onClick={close}
+          className={`group ${triggerClassName ?? ""}`}
+        >
+          {children}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={triggerAriaLabel}
+          onClick={() => setOpen((o) => !o)}
+          className={`group ${triggerClassName ?? ""}`}
+        >
+          {children}
+        </button>
+      )}
 
       {mounted && (
         <div
