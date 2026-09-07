@@ -164,6 +164,8 @@ type ProfileRow = {
   reminders_enabled: boolean;
   digest_hour: number;
   avatar_url: string | null;
+  /** May be absent on a DB that predates the column -- treated as true. */
+  animate_avatar?: boolean | null;
 };
 
 const toProfile = (r: ProfileRow): Profile => ({
@@ -171,9 +173,8 @@ const toProfile = (r: ProfileRow): Profile => ({
   remindersEnabled: Boolean(r.reminders_enabled),
   digestHour: Number(r.digest_hour),
   avatarUrl: r.avatar_url ?? null,
+  animateAvatar: r.animate_avatar ?? true,
 });
-
-const PROFILE_COLS = "timezone, reminders_enabled, digest_hour, avatar_url";
 
 /** The empty shape used before load and after a config is removed. */
 const EMPTY_EMAIL_CONFIG: EmailConfig = {
@@ -230,7 +231,13 @@ type Store = {
   profile: Profile | null;
   /** The user's own email provider. Cloud mode only; null until loaded. */
   emailConfig: EmailConfig | null;
+  /**
+   * The last data-layer failure, or null. It is cleared automatically the next
+   * time any write succeeds, and `dismissError` clears it on demand -- a stale
+   * banner reading over a working app is worse than no banner.
+   */
   error: string | null;
+  dismissError: () => void;
 
   addClient: (input: NewClient) => Promise<Client>;
   editClient: (id: string, patch: Partial<NewClient>) => Promise<void>;
@@ -273,6 +280,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [emailConfig, setEmailConfig] = useState<EmailConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dismissError = useCallback(() => setError(null), []);
+
+  /**
+   * Every mutation calls this before it touches the network. A stale failure
+   * from a previous action must not sit on screen while the current one is
+   * succeeding -- if this attempt also fails, `setError` runs again below.
+   */
+  const beginWrite = useCallback(() => setError(null), []);
 
   // Resolved during boot: "cloud" once a signed-in user is confirmed,
   // "local" for a guest or a deployment without Supabase.
@@ -346,7 +361,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               { user_id: userData.user!.id, timezone: tz },
               { onConflict: "user_id" }
             )
-            .select(PROFILE_COLS)
+            .select("*")
             .single();
           if (!cancelled && data) setProfile(toProfile(data as ProfileRow));
         } catch {
@@ -398,6 +413,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         color: input.color ?? null,
         archived: false,
       };
+      beginWrite();
       setClients((prev) => [...prev, record].sort(byName));
 
       if (modeRef.current === "cloud") {
@@ -415,10 +431,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
       return record;
     },
-    [clients]
+    [clients, beginWrite]
   );
 
   const editClient = useCallback(async (id: string, patch: Partial<NewClient>) => {
+    beginWrite();
     setClients((prev) =>
       prev.map((c) => (c.id === id ? { ...c, ...patch } : c)).sort(byName)
     );
@@ -435,9 +452,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .from("clients").update(row).eq("id", id);
       if (err) setError(err.message);
     }
-  }, []);
+  }, [beginWrite]);
 
   const removeClient = useCallback(async (id: string) => {
+    beginWrite();
     setClients((prev) => prev.filter((c) => c.id !== id));
     setBlocks((prev) => prev.filter((b) => b.clientId !== id));
     if (modeRef.current === "cloud") {
@@ -446,11 +464,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .from("clients").delete().eq("id", id);
       if (err) setError(err.message);
     }
-  }, []);
+  }, [beginWrite]);
 
   // ---- blocks ------------------------------------------------------------
   const addBlock = useCallback(async (input: NewBlock): Promise<Block> => {
     const record: Block = { id: uid("bl"), ...input };
+    beginWrite();
     setBlocks((prev) => [...prev, record]);
 
     if (modeRef.current === "cloud") {
@@ -463,9 +482,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return record;
-  }, []);
+  }, [beginWrite]);
 
   const editBlock = useCallback(async (id: string, patch: Partial<NewBlock>) => {
+    beginWrite();
     setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
     if (modeRef.current === "cloud") {
       const row: Record<string, unknown> = {};
@@ -478,20 +498,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .from("blocks").update(row).eq("id", id);
       if (err) setError(err.message);
     }
-  }, []);
+  }, [beginWrite]);
 
   const removeBlock = useCallback(async (id: string) => {
+    beginWrite();
     setBlocks((prev) => prev.filter((b) => b.id !== id));
     if (modeRef.current === "cloud") {
       const { error: err } = await getSupabase()!
         .from("blocks").delete().eq("id", id);
       if (err) setError(err.message);
     }
-  }, []);
+  }, [beginWrite]);
 
   // ---- profile ---------------------------------------------------------
   const updateProfile = useCallback(
     async (patch: Partial<Profile>) => {
+      beginWrite();
       setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
       if (modeRef.current !== "cloud") return;
       const uid = user?.id;
@@ -502,12 +524,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         row.reminders_enabled = patch.remindersEnabled;
       if (patch.digestHour !== undefined) row.digest_hour = patch.digestHour;
       if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
+      if (patch.animateAvatar !== undefined)
+        row.animate_avatar = patch.animateAvatar;
       if (Object.keys(row).length === 0) return;
       const { error: err } = await getSupabase()!
         .from("profiles").update(row).eq("user_id", uid);
       if (err) setError(err.message);
     },
-    [user]
+    [user, beginWrite]
   );
 
   /** Upload a new avatar to storage and point the profile at it. */
@@ -516,6 +540,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const supabase = getSupabase();
       const uid = user?.id;
       if (!supabase || !uid || modeRef.current !== "cloud") return;
+      beginWrite();
       const ext = (file.name.split(".").pop() || "png").toLowerCase();
       const path = `${uid}/avatar.${ext}`;
       const { error: upErr } = await supabase.storage
@@ -529,7 +554,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const url = `${data.publicUrl}?v=${Date.now()}`;
       await updateProfile({ avatarUrl: url });
     },
-    [user, updateProfile]
+    [user, updateProfile, beginWrite]
   );
 
   const removeAvatar = useCallback(async (): Promise<void> => {
@@ -600,6 +625,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // ---- bulk --------------------------------------------------------------
   const importData = useCallback(
     async (incoming: { clients: Client[]; blocks: Block[] }): Promise<MergePlan> => {
+      beginWrite();
       const plan = planMerge(clients, incoming, uid);
 
       if (modeRef.current === "cloud") {
@@ -634,7 +660,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
       return plan;
     },
-    [clients]
+    [clients, beginWrite]
   );
 
   const byId = useMemo(() => {
@@ -652,7 +678,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      clients, blocks, ready, mode, user, profile, emailConfig, error,
+      clients, blocks, ready, mode, user, profile, emailConfig, error, dismissError,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile, uploadAvatar, removeAvatar,
@@ -660,7 +686,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clientById, serviceTags, importData,
     }),
     [
-      clients, blocks, ready, mode, user, profile, emailConfig, error,
+      clients, blocks, ready, mode, user, profile, emailConfig, error, dismissError,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile, uploadAvatar, removeAvatar,

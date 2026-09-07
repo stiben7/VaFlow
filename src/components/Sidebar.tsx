@@ -16,6 +16,8 @@ import {
   CameraIcon,
 } from "./Icons";
 import UserMenu from "./UserMenu";
+import Avatar from "./Avatar";
+import Tooltip from "./Tooltip";
 
 const NAV = [
   { href: "/my-week", label: "My Week", Icon: CalendarIcon },
@@ -37,29 +39,6 @@ function initialsFor(email: string | null | undefined): string {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
   return local.slice(0, 2).toUpperCase() || "??";
-}
-
-function Avatar({
-  src,
-  initials,
-  className,
-}: {
-  src: string | null;
-  initials: string;
-  className: string;
-}) {
-  return (
-    <span
-      className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-brand font-semibold text-white ${className}`}
-    >
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="h-full w-full object-cover" />
-      ) : (
-        initials
-      )}
-    </span>
-  );
 }
 
 export default function Sidebar() {
@@ -100,6 +79,7 @@ export default function Sidebar() {
   const isCloud = mode === "cloud";
   const isGuest = mode === "local" && isSupabaseConfigured;
   const avatar = profile?.avatarUrl ?? null;
+  const animateAvatar = profile?.animateAvatar ?? true;
   const initials = mode === "cloud" ? initialsFor(email) : isGuest ? "GU" : "LO";
   const displayName =
     mode === "cloud" ? (email ?? "Signed in") : isGuest ? "Guest" : "Local mode";
@@ -122,8 +102,8 @@ export default function Sidebar() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024) {
-      setAvatarErr("Image, under 3 MB.");
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) {
+      setAvatarErr("Image, under 5 MB.");
       return;
     }
     setAvatarErr(null);
@@ -147,16 +127,24 @@ export default function Sidebar() {
       }`}
     >
       {/* Collapse toggle -- pinned top-right; centres itself when collapsed */}
-      <button
-        onClick={toggle}
-        className={`absolute top-3.5 z-10 rounded-md p-1.5 text-faint hover:bg-sunken hover:text-ink ${
+      <div
+        className={`absolute top-3.5 z-10 ${
           collapsed ? "left-1/2 -translate-x-1/2" : "right-2.5"
         }`}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
-        <SidebarIcon />
-      </button>
+        <Tooltip
+          label={collapsed ? "Expand menu" : "Collapse menu"}
+          side={collapsed ? "right" : "bottom"}
+        >
+          <button
+            onClick={toggle}
+            className="rounded-md p-1.5 text-faint hover:bg-sunken hover:text-ink"
+            aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+          >
+            <SidebarIcon />
+          </button>
+        </Tooltip>
+      </div>
 
       {/* Everything above the identity strip clips as the rail narrows. The
           strip stays outside the clip so its quick-menu can overflow. */}
@@ -259,10 +247,13 @@ export default function Sidebar() {
         <div className="flex-1" />
       </div>
 
-      {/* Identity + quick-menu */}
+      {/* Identity + quick-menu. Collapsed: just the avatar, no card chrome --
+          the bordered box looked cramped at rail width. */}
       <div
-        className={`m-2.5 flex shrink-0 items-center rounded-lg border border-edge bg-canvas ${
-          collapsed ? "justify-center p-1.5" : "gap-2.5 p-2"
+        className={`flex shrink-0 items-center ${
+          collapsed
+            ? "mx-auto mb-3 mt-1 justify-center"
+            : "m-2.5 gap-2.5 rounded-lg border border-edge bg-canvas p-2"
         }`}
       >
         {isCloud ? (
@@ -276,6 +267,7 @@ export default function Sidebar() {
               <Avatar
                 src={avatar}
                 initials={initials}
+                animate={animateAvatar}
                 className="h-8 w-8 text-[11px]"
               />
             </UserMenu>
@@ -291,6 +283,7 @@ export default function Sidebar() {
                 <Avatar
                   src={avatar}
                   initials={initials}
+                  animate={animateAvatar}
                   className="h-9 w-9 text-[12px]"
                 />
                 <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">

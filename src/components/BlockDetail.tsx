@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { accentFor, PRIORITY_META, SERVICE_BADGE_ON } from "@/lib/colors";
 import { PRIORITIES, type Priority } from "@/lib/types";
@@ -32,6 +32,27 @@ export default function BlockDetail({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [note, setNote] = useState(block?.note ?? "");
   const [editing, setEditing] = useState(false);
+
+  // The popover closes on an outside mousedown, which unmounts this card before
+  // the textarea's blur can fire -- so a typed note was being lost. Persist it
+  // on a short debounce while typing, and flush once more on unmount.
+  const noteRef = useRef(note);
+  noteRef.current = note;
+  const savedNote = useRef(block?.note ?? null);
+
+  const commitNote = useCallback(() => {
+    const next = noteRef.current.trim() || null;
+    if (next === savedNote.current) return;
+    savedNote.current = next;
+    void editBlock(blockId, { note: next });
+  }, [blockId, editBlock]);
+
+  useEffect(() => {
+    const t = setTimeout(commitNote, 500);
+    return () => clearTimeout(t);
+  }, [note, commitNote]);
+
+  useEffect(() => () => commitNote(), [commitNote]);
 
   useLayoutEffect(() => {
     const anchor = document.querySelector<HTMLElement>(
@@ -208,7 +229,7 @@ export default function BlockDetail({
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          onBlur={() => void editBlock(block.id, { note: note.trim() || null })}
+          onBlur={commitNote}
           rows={2}
           placeholder="What is this session for?"
           className="w-full resize-none rounded-md border border-edge bg-panel px-2 py-1.5 text-[11.5px] leading-relaxed text-ink outline-none placeholder:text-faint focus:border-brand focus:bg-canvas focus:ring-2 focus:ring-brand/15"

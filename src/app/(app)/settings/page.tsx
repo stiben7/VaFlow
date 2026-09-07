@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { getSupabase } from "@/lib/supabase/client";
 import EmailDeliverySection from "@/components/EmailDeliverySection";
 import Select from "@/components/Select";
+import Avatar from "@/components/Avatar";
 import { CameraIcon, EyeIcon, EyeOffIcon } from "@/components/Icons";
 
 const MIN_PASSWORD = 6;
@@ -65,8 +66,10 @@ export default function SettingsPage() {
           <ProfileSection
             email={email}
             avatar={profile?.avatarUrl ?? null}
+            animateAvatar={profile?.animateAvatar ?? true}
             uploadAvatar={uploadAvatar}
             removeAvatar={removeAvatar}
+            updateProfile={updateProfile}
           />
           <AccountSection email={email} />
           <DeliverySection
@@ -121,17 +124,23 @@ function SectionShell({
 function ProfileSection({
   email,
   avatar,
+  animateAvatar,
   uploadAvatar,
   removeAvatar,
+  updateProfile,
 }: {
   email: string | null;
   avatar: string | null;
+  animateAvatar: boolean;
   uploadAvatar: (file: File) => Promise<void>;
   removeAvatar: () => Promise<void>;
+  updateProfile: ReturnType<typeof useStore>["updateProfile"];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const isGif = !!avatar && /\.gif(\?|$)/i.test(avatar);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -141,8 +150,8 @@ function ProfileSection({
       setErr("Pick an image file.");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      setErr("Keep it under 3 MB.");
+    if (file.size > 5 * 1024 * 1024) {
+      setErr("Keep it under 5 MB.");
       return;
     }
     setErr(null);
@@ -163,17 +172,15 @@ function ProfileSection({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-brand text-[18px] font-semibold text-white"
+          className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-full"
           title="Change photo"
         >
-          {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatar} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="grid h-full w-full place-items-center">
-              {initialsFor(email)}
-            </span>
-          )}
+          <Avatar
+            src={avatar}
+            initials={initialsFor(email)}
+            animate={animateAvatar}
+            className="h-16 w-16 text-[18px]"
+          />
           <span className="absolute inset-0 grid place-items-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
             <CameraIcon className="h-5 w-5 text-white" />
           </span>
@@ -197,7 +204,9 @@ function ProfileSection({
             </button>
           )}
           {err && <p className="mt-0.5 text-[11px] text-danger">{err}</p>}
-          <p className="mt-0.5 text-[11px] text-faint">JPG or PNG, under 3 MB.</p>
+          <p className="mt-0.5 text-[11px] text-faint">
+            JPG, PNG or GIF, under 5 MB.
+          </p>
         </div>
         <input
           ref={fileRef}
@@ -207,6 +216,28 @@ function ProfileSection({
           className="hidden"
         />
       </div>
+
+      {isGif && (
+        <label className="flex items-center justify-between gap-2 rounded-md border border-edge px-3 py-2.5">
+          <span className="min-w-0">
+            <span className="block text-[12.5px] font-medium text-ink">
+              Play animated avatar
+            </span>
+            <span className="block text-[11px] leading-snug text-faint">
+              Off freezes your GIF to its first frame everywhere — lighter on a
+              busy sidebar.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={animateAvatar}
+            onChange={(e) =>
+              void updateProfile({ animateAvatar: e.target.checked })
+            }
+            className="h-3.5 w-3.5 shrink-0 accent-[var(--color-brand)]"
+          />
+        </label>
+      )}
     </SectionShell>
   );
 }

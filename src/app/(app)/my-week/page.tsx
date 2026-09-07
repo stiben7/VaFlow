@@ -16,9 +16,18 @@ import ClientPool from "@/components/ClientPool";
 import TimeGrid from "@/components/TimeGrid";
 import MonthGrid from "@/components/MonthGrid";
 import DragGhost from "@/components/DragGhost";
+import { CloseIcon } from "@/components/Icons";
 
 export default function MyWeekPage() {
-  const { blocks, clients, ready, error, mode } = useStore();
+  const { blocks, clients, ready, error, dismissError, mode } = useStore();
+
+  // A data-layer error auto-expires -- a stale banner over a working app is
+  // worse than none. It also clears itself the next time a write succeeds.
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(dismissError, 8000);
+    return () => clearTimeout(t);
+  }, [error, dismissError]);
   const [view, setView] = useState<CalendarView>("week");
 
   // Resolved on the client only. Deriving "today" during SSR would pick the
@@ -88,8 +97,15 @@ export default function MyWeekPage() {
       />
 
       {error && (
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-[11.5px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
-          {error}
+        <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-[11.5px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+          <span className="min-w-0 flex-1">{error}</span>
+          <button
+            onClick={dismissError}
+            aria-label="Dismiss"
+            className="shrink-0 rounded p-0.5 text-amber-900/70 hover:bg-amber-900/10 hover:text-amber-900 dark:text-amber-200/70 dark:hover:text-amber-200"
+          >
+            <CloseIcon className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
