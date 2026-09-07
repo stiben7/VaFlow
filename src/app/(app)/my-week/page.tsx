@@ -17,6 +17,7 @@ import TimeGrid from "@/components/TimeGrid";
 import MonthGrid from "@/components/MonthGrid";
 import DragGhost from "@/components/DragGhost";
 import { CloseIcon } from "@/components/Icons";
+import { isTextEntryTarget } from "@/lib/dom";
 
 export default function MyWeekPage() {
   const { blocks, clients, ready, error, dismissError, mode } = useStore();
@@ -50,8 +51,7 @@ export default function MyWeekPage() {
   // Keyboard: D/W/M switch views, T jumps home, arrows page.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
-      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      if (isTextEntryTarget(e.target)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const k = e.key.toLowerCase();
