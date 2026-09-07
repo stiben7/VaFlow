@@ -204,11 +204,15 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   reminders_enabled BOOLEAN     NOT NULL DEFAULT TRUE,
   -- Local hour (0-23) to send the evening "tomorrow" digest.
   digest_hour       SMALLINT    NOT NULL DEFAULT 18,
+  -- Public URL of the uploaded avatar (in the 'avatars' storage bucket),
+  -- with a ?v= cache-buster. NULL -> show initials.
+  avatar_url        TEXT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT profiles_digest_hour_chk CHECK (digest_hour BETWEEN 0 AND 23)
 );
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
 DROP TRIGGER IF EXISTS profiles_touch ON public.profiles;
 CREATE TRIGGER profiles_touch BEFORE UPDATE ON public.profiles
@@ -288,6 +292,49 @@ $$;
 -- and read everyone's email + timezone.
 REVOKE EXECUTE ON FUNCTION public.get_reminder_recipients() FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.get_reminder_recipients() TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Avatars storage bucket
+--
+-- Public read (avatars show on the sign-in-free landing too); each user may
+-- only write inside the folder named by their own uid, so
+-- `<uid>/avatar` is the only path they can touch.
+-- ---------------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS avatars_public_read ON storage.objects;
+CREATE POLICY avatars_public_read ON storage.objects
+  FOR SELECT USING (bucket_id = 'avatars');
+
+DROP POLICY IF EXISTS avatars_insert_own ON storage.objects;
+CREATE POLICY avatars_insert_own ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'avatars'
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::text
+  );
+
+DROP POLICY IF EXISTS avatars_update_own ON storage.objects;
+CREATE POLICY avatars_update_own ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'avatars'
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::text
+  )
+  WITH CHECK (
+    bucket_id = 'avatars'
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::text
+  );
+
+DROP POLICY IF EXISTS avatars_delete_own ON storage.objects;
+CREATE POLICY avatars_delete_own ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'avatars'
+    AND (storage.foldername(name))[1] = (SELECT auth.uid())::text
+  );
 
 -- ===========================================================================
 -- Scheduler -- run this block ONCE, after the 'reminders' Edge Function is

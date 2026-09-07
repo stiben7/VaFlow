@@ -185,3 +185,33 @@ export const CopyIcon = ({ className }: P) => (
     <path d="M13.5 6.5V5a1.5 1.5 0 0 0-1.5-1.5H5A1.5 1.5 0 0 0 3.5 5v7A1.5 1.5 0 0 0 5 13.5h1.5" />
   </S>
 );
+
+export const SettingsIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M3 6h14M3 10h14M3 14h14" />
+    <circle cx="12" cy="6" r="1.9" fill="var(--color-canvas, #fff)" />
+    <circle cx="7" cy="10" r="1.9" fill="var(--color-canvas, #fff)" />
+    <circle cx="14" cy="14" r="1.9" fill="var(--color-canvas, #fff)" />
+  </S>
+);
+
+export const CameraIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M3.5 6.5h3l1.2-1.8h4.6L14.5 6.5h2A1.5 1.5 0 0 1 18 8v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 2 15V8a1.5 1.5 0 0 1 1.5-1.5z" />
+    <circle cx="10" cy="11" r="2.75" />
+  </S>
+);
+
+export const EyeIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M1.5 10S4.5 4.5 10 4.5 18.5 10 18.5 10 15.5 15.5 10 15.5 1.5 10 1.5 10z" />
+    <circle cx="10" cy="10" r="2.5" />
+  </S>
+);
+
+export const EyeOffIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M8 4.7A8.7 8.7 0 0 1 10 4.5c5.5 0 8.5 5.5 8.5 5.5a15 15 0 0 1-2.2 2.9M4.2 6.2A14.7 14.7 0 0 0 1.5 10S4.5 15.5 10 15.5a8.5 8.5 0 0 0 3.3-.65" />
+    <path d="M8.3 8.3a2.5 2.5 0 0 0 3.4 3.4M3 3l14 14" />
+  </S>
+);
