@@ -65,6 +65,20 @@ body {
   height: 100%;
 }
 
+/* Tailwind v4's preflight no longer sets this. Anything that acts as a button
+   -- and the labels that wrap a checkbox/radio -- gets the hand cursor, while
+   a disabled control keeps the arrow. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+label:has(> input[type="checkbox"]),
+label:has(> input[type="radio"]),
+summary {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
 body {
   background: var(--color-canvas);
   color: var(--color-ink);
