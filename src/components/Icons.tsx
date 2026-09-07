@@ -258,6 +258,13 @@ export const SettingsIcon = ({ className }: P) => (
   </svg>
 );
 
+export const ChartIcon = ({ className }: P) => (
+  <S className={className}>
+    <path d="M3 3v13.5a.5.5 0 0 0 .5.5H17" />
+    <path d="M6.5 13.5v-3M10 13.5v-6M13.5 13.5v-4.5" />
+  </S>
+);
+
 export const CameraIcon = ({ className }: P) => (
   <S className={className}>
     <path d="M3.5 6.5h3l1.2-1.8h4.6L14.5 6.5h2A1.5 1.5 0 0 1 18 8v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 2 15V8a1.5 1.5 0 0 1 1.5-1.5z" />
