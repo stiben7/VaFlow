@@ -256,6 +256,8 @@ type Store = {
     input: EmailConfigInput
   ) => Promise<{ verified: boolean; error?: string }>;
   removeEmailConfig: () => Promise<void>;
+  /** Send both reminder digests (evening + morning) to the user's own inbox. */
+  sendSampleReminders: () => Promise<{ ok: boolean; error?: string }>;
 
   clientById: (id: string) => Client | undefined;
   /** Default service labels plus every custom one in use, defaults first. */
@@ -622,6 +624,47 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setEmailConfig(EMPTY_EMAIL_CONFIG);
   }, []);
 
+  const sendSampleReminders = useCallback(async (): Promise<{
+    ok: boolean;
+    error?: string;
+  }> => {
+    const supabase = getSupabase();
+    if (!supabase || modeRef.current !== "cloud") {
+      return { ok: false, error: "Not signed in." };
+    }
+    const { data, error: fnErr } = await supabase.functions.invoke("reminders", {
+      method: "POST",
+      body: { preview: true },
+    });
+    if (fnErr) {
+      let msg = fnErr.message;
+      try {
+        const ctx = (fnErr as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          const body = await ctx.json();
+          if (body?.error) msg = String(body.error);
+        }
+      } catch {
+        /* keep the generic message */
+      }
+      return { ok: false, error: msg };
+    }
+    const d = (data ?? {}) as Record<string, unknown>;
+    if (d.ok) {
+      // A failed provider send also updates last_error server-side; refresh.
+      try {
+        const { data: fresh } = await supabase.functions.invoke("email-config", {
+          method: "GET",
+        });
+        setEmailConfig(toEmailConfig(fresh as Record<string, unknown> | null));
+      } catch {
+        /* non-critical */
+      }
+      return { ok: true };
+    }
+    return { ok: false, error: d.error ? String(d.error) : "Couldn't send the samples." };
+  }, []);
+
   // ---- bulk --------------------------------------------------------------
   const importData = useCallback(
     async (incoming: { clients: Client[]; blocks: Block[] }): Promise<MergePlan> => {
@@ -682,7 +725,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile, uploadAvatar, removeAvatar,
-      saveEmailConfig, removeEmailConfig,
+      saveEmailConfig, removeEmailConfig, sendSampleReminders,
       clientById, serviceTags, importData,
     }),
     [
@@ -690,7 +733,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile, uploadAvatar, removeAvatar,
-      saveEmailConfig, removeEmailConfig,
+      saveEmailConfig, removeEmailConfig, sendSampleReminders,
       clientById, serviceTags, importData,
     ]
   );
