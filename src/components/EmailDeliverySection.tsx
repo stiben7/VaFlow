@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 import type { EmailConfigInput, EmailProvider } from "@/lib/types";
 import { EyeIcon, EyeOffIcon } from "./Icons";
+import Select from "./Select";
 
 const inputCls =
   "w-full rounded-md border border-edge bg-canvas px-2.5 py-1.5 text-[12.5px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15";
@@ -145,14 +146,15 @@ function EmailDeliveryForm({
 
   return (
     <form onSubmit={submit} className="mt-3 space-y-2 border-t border-edge pt-3">
-      <select
+      <Select
         value={provider}
         onChange={(e) => setProvider(e.target.value as EmailProvider)}
-        className={inputCls}
+        fullWidth
+        aria-label="Email provider"
       >
         <option value="resend">Resend (API key)</option>
         <option value="smtp">SMTP (host / port / login)</option>
-      </select>
+      </Select>
 
       {provider === "smtp" && (
         <div className="grid grid-cols-3 gap-2">

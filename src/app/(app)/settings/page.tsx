@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { getSupabase } from "@/lib/supabase/client";
 import EmailDeliverySection from "@/components/EmailDeliverySection";
+import Select from "@/components/Select";
 import { CameraIcon, EyeIcon, EyeOffIcon } from "@/components/Icons";
 
 const MIN_PASSWORD = 6;
@@ -410,19 +411,20 @@ function DeliverySection({
                 Local time the &ldquo;tomorrow&rdquo; email goes out.
               </span>
             </span>
-            <select
+            <Select
               value={profile.digestHour}
               onChange={(e) =>
                 void updateProfile({ digestHour: Number(e.target.value) })
               }
-              className="shrink-0 rounded-md border border-edge bg-canvas px-2 py-1.5 text-[12.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
+              className="shrink-0"
+              aria-label="Evening digest hour"
             >
               {Array.from({ length: 24 }, (_, h) => (
                 <option key={h} value={h}>
                   {h.toString().padStart(2, "0")}:00
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </>
       )}

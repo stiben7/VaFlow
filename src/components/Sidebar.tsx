@@ -146,10 +146,12 @@ export default function Sidebar() {
           : ""
       }`}
     >
-      {/* Collapse toggle -- pinned so it stays reachable in both states */}
+      {/* Collapse toggle -- pinned top-right; centres itself when collapsed */}
       <button
         onClick={toggle}
-        className="absolute left-2.5 top-3.5 z-10 rounded-md p-1.5 text-faint hover:bg-sunken hover:text-ink"
+        className={`absolute top-3.5 z-10 rounded-md p-1.5 text-faint hover:bg-sunken hover:text-ink ${
+          collapsed ? "left-1/2 -translate-x-1/2" : "right-2.5"
+        }`}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
@@ -161,7 +163,7 @@ export default function Sidebar() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Brand -- the whole row fades on collapse, leaving just the toggle */}
       <div
-        className={`flex h-[52px] shrink-0 items-center gap-2 pl-11 pr-3 ${hidden}`}
+        className={`flex h-[52px] shrink-0 items-center gap-2 pl-4 pr-11 ${hidden}`}
       >
         <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand text-[13px] font-bold text-white">
           V
@@ -316,10 +318,11 @@ export default function Sidebar() {
               <UserMenu
                 guest={false}
                 align="right"
-                triggerAriaLabel="Account menu"
+                triggerAriaLabel="Settings"
+                triggerHref="/settings#profile"
                 triggerClassName="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-sunken hover:text-ink"
               >
-                <SettingsIcon />
+                <SettingsIcon className="h-4 w-4 shrink-0 transition-transform duration-300 ease-out group-hover:rotate-90" />
               </UserMenu>
             </>
           )

@@ -20,6 +20,7 @@ import {
   type RangePreset,
 } from "@/lib/analytics";
 import { Bars, Donut } from "@/components/charts";
+import Select from "@/components/Select";
 
 const RANGE_LABELS: Record<RangePreset, string> = {
   "this-week": "This week",
@@ -36,8 +37,8 @@ const PRIORITY_HEX: Record<string, string> = {
   Low: "#22c55e",
 };
 
-const selectCls =
-  "rounded-md border border-edge bg-canvas px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/15";
+const dateInputCls =
+  "rounded-md border border-edge bg-canvas px-2.5 py-1.5 text-[12.5px] text-ink outline-none transition-colors hover:border-faint focus:border-brand focus:ring-2 focus:ring-brand/15";
 
 export default function DashboardPage() {
   const { clients, blocks, ready, serviceTags } = useStore();
@@ -95,10 +96,9 @@ export default function DashboardPage() {
 
       {/* Filters */}
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-edge bg-panel px-5 py-2.5">
-        <select
+        <Select
           value={filters.range}
           onChange={(e) => set("range", e.target.value as RangePreset)}
-          className={selectCls}
           aria-label="Date range"
         >
           {(Object.keys(RANGE_LABELS) as RangePreset[]).map((r) => (
@@ -106,7 +106,7 @@ export default function DashboardPage() {
               {RANGE_LABELS[r]}
             </option>
           ))}
-        </select>
+        </Select>
 
         {filters.range === "custom" && (
           <>
@@ -114,7 +114,7 @@ export default function DashboardPage() {
               type="date"
               value={filters.customStart}
               onChange={(e) => set("customStart", e.target.value)}
-              className={selectCls}
+              className={dateInputCls}
               aria-label="Start date"
             />
             <span className="text-[12px] text-faint">to</span>
@@ -122,16 +122,15 @@ export default function DashboardPage() {
               type="date"
               value={filters.customEnd}
               onChange={(e) => set("customEnd", e.target.value)}
-              className={selectCls}
+              className={dateInputCls}
               aria-label="End date"
             />
           </>
         )}
 
-        <select
+        <Select
           value={filters.clientId}
           onChange={(e) => set("clientId", e.target.value)}
-          className={selectCls}
           aria-label="Client"
         >
           <option value="all">All clients</option>
@@ -140,26 +139,24 @@ export default function DashboardPage() {
               {c.name}
             </option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
           value={filters.priority}
           onChange={(e) =>
             set("priority", e.target.value as DashboardFilters["priority"])
           }
-          className={selectCls}
           aria-label="Priority"
         >
           <option value="all">Any priority</option>
           <option value="high">{PRIORITY_META.high.label}</option>
           <option value="normal">{PRIORITY_META.normal.label}</option>
           <option value="low">{PRIORITY_META.low.label}</option>
-        </select>
+        </Select>
 
-        <select
+        <Select
           value={filters.serviceTag}
           onChange={(e) => set("serviceTag", e.target.value)}
-          className={selectCls}
           aria-label="Service tag"
         >
           <option value="all">Any service</option>
@@ -168,7 +165,7 @@ export default function DashboardPage() {
               {t}
             </option>
           ))}
-        </select>
+        </Select>
 
         {(filters.range !== DEFAULT_FILTERS.range ||
           filters.clientId !== "all" ||
