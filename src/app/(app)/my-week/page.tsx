@@ -152,8 +152,8 @@ export default function MyWeekPage() {
         {mode === "cloud"
           ? "Synced to your account. Private to you."
           : isSupabaseConfigured
-            ? "Guest mode -- saved in this browser only. Sign in to sync to an account."
-            : "Local mode -- saved in this browser only. Add the Supabase env vars to enable accounts."}
+            ? "Guest mode. Saved in this browser only. Sign in to sync to an account."
+            : "Local mode. Saved in this browser only. Add the Supabase env vars to enable accounts."}
       </div>
     </>
   );

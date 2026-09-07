@@ -39,7 +39,7 @@ export default function EmailDeliverySection() {
     setSample("idle");
     setSampleMsg(
       r.ok
-        ? { ok: true, text: "Sent — check your inbox for two [Sample] emails." }
+        ? { ok: true, text: "Check your inbox for the two sample emails." }
         : { ok: false, text: r.error ?? "Couldn't send the samples." }
     );
   }
@@ -288,7 +288,8 @@ function EmailDeliveryForm({
             >
               Google App Password
             </a>{" "}
-            below (needs 2-Step Verification) — not your normal password.
+            below. It needs 2-Step Verification on, and it is not your normal
+            password.
           </p>
         </div>
       )}

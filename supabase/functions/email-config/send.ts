@@ -114,7 +114,7 @@ function friendlySmtpError(e: unknown): string {
   if (/\b535\b|\b534\b|BadCredentials|not accepted|AuthenticationFailed|Invalid login|invalid cmd|\bauth\b/i.test(raw)) {
     return (
       "The mail server rejected the login. Gmail needs a 16-character App " +
-      "Password (with 2-Step Verification on) — not your normal password."
+      "Password with 2-Step Verification on, not your normal password."
     );
   }
   if (/getaddrinfo|dns|ENOTFOUND|failed to lookup/i.test(raw)) {

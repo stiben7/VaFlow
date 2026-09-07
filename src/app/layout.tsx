@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VAFlow -- Client Prioritizer",
+  title: "VAFlow · Client Prioritizer",
   description:
     "Drag your client roster onto a week and see, at a glance, what actually gets your attention.",
 };

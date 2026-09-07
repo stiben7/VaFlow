@@ -90,7 +90,7 @@ export function formatDuration(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
-/** "Sep 1 - 7, 2026" / "Aug 31 - Sep 6, 2026" */
+/** "Sep 1 to 7, 2026" / "Aug 31 to Sep 6, 2026" */
 export function formatWeekRange(anchor: Date): string {
   const days = weekDays(anchor);
   const a = days[0];
@@ -98,12 +98,12 @@ export function formatWeekRange(anchor: Date): string {
   const mA = MONTH_LABELS[a.getMonth()].slice(0, 3);
   const mB = MONTH_LABELS[b.getMonth()].slice(0, 3);
   if (a.getMonth() === b.getMonth()) {
-    return `${mA} ${a.getDate()} - ${b.getDate()}, ${b.getFullYear()}`;
+    return `${mA} ${a.getDate()} to ${b.getDate()}, ${b.getFullYear()}`;
   }
   if (a.getFullYear() === b.getFullYear()) {
-    return `${mA} ${a.getDate()} - ${mB} ${b.getDate()}, ${b.getFullYear()}`;
+    return `${mA} ${a.getDate()} to ${mB} ${b.getDate()}, ${b.getFullYear()}`;
   }
-  return `${mA} ${a.getDate()}, ${a.getFullYear()} - ${mB} ${b.getDate()}, ${b.getFullYear()}`;
+  return `${mA} ${a.getDate()}, ${a.getFullYear()} to ${mB} ${b.getDate()}, ${b.getFullYear()}`;
 }
 
 export function formatDayLong(d: Date): string {

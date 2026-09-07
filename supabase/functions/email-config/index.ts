@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
     const result = await Promise.race([
       sendEmail(parsed.provider, {
         to: user.email!,
-        subject: "VAFlow email delivery — test",
+        subject: "VAFlow email delivery test",
         html:
           `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:14px;color:#1c1917">` +
           `<p>This is a test from VAFlow.</p>` +

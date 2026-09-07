@@ -215,7 +215,7 @@ export default function DashboardPage() {
                 value={
                   view.totals.busiestDay
                     ? fmtHrs(view.totals.busiestDay.minutes)
-                    : "—"
+                    : "None"
                 }
                 sub={
                   view.totals.busiestDay
