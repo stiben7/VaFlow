@@ -212,24 +212,45 @@ function LoginForm() {
                 </button>
               </form>
 
-              <p className="mt-3 text-center text-[12px] text-muted">
-                {mode === "signup" ? (
-                  <>
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("signin");
-                        setError(null);
-                        setNotice(null);
-                      }}
-                      className="font-medium text-brand hover:underline"
-                    >
-                      Sign in
-                    </button>
-                  </>
-                ) : (
-                  <>
+              {mode === "signup" ? (
+                <p className="mt-3 text-center text-[12px] text-muted">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("signin");
+                      setError(null);
+                      setNotice(null);
+                    }}
+                    className="font-medium text-brand hover:underline"
+                  >
+                    Sign in
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={continueAsGuest}
+                    className="mt-3 flex w-full items-center justify-between rounded-md border border-edge bg-canvas px-3.5 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-sunken"
+                  >
+                    <span>Continue as guest</span>
+                    <UserIcon className="h-4 w-4" />
+                  </button>
+                  <p className="mt-2 text-[11px] leading-snug text-faint">
+                    No account. Your clients and schedule stay in this browser
+                    only. You can sign in later to sync them.
+                  </p>
+
+                  <div className="my-4 flex items-center gap-2">
+                    <span className="h-px flex-1 bg-edge" />
+                    <span className="text-[10.5px] font-medium uppercase tracking-wide text-faint">
+                      or
+                    </span>
+                    <span className="h-px flex-1 bg-edge" />
+                  </div>
+
+                  <p className="text-center text-[12px] text-muted">
                     New here?{" "}
                     <button
                       type="button"
@@ -240,31 +261,11 @@ function LoginForm() {
                       }}
                       className="font-medium text-brand hover:underline"
                     >
-                      Create an account
+                      Sign up
                     </button>
-                  </>
-                )}
-              </p>
-
-              <div className="my-4 flex items-center gap-2">
-                <span className="h-px flex-1 bg-edge" />
-                <span className="text-[10.5px] font-medium uppercase tracking-wide text-faint">
-                  or
-                </span>
-                <span className="h-px flex-1 bg-edge" />
-              </div>
-              <button
-                type="button"
-                onClick={continueAsGuest}
-                className="flex w-full items-center justify-between rounded-md border border-edge bg-canvas px-3.5 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-sunken"
-              >
-                <span>Continue as guest</span>
-                <UserIcon className="h-4 w-4" />
-              </button>
-              <p className="mt-2 text-[11px] leading-snug text-faint">
-                No account. Your clients and schedule stay in this browser only.
-                You can sign in later to sync them.
-              </p>
+                  </p>
+                </>
+              )}
             </>
           )}
         </div>
