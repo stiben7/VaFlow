@@ -26,9 +26,8 @@ export default function ClientDialog({
     client?.serviceTags ?? []
   );
   const [newTag, setNewTag] = useState("");
-  const [strategist, setStrategist] = useState(client?.strategist ?? "");
-  const [basecampUrl, setBasecampUrl] = useState(client?.basecampUrl ?? "");
-  const [services, setServices] = useState(client?.services ?? "");
+  const [link, setLink] = useState(client?.link ?? "");
+  const [notes, setNotes] = useState(client?.notes ?? "");
   const [colorKey, setColorKey] = useState<number>(() => {
     if (client) return ((client.colorKey % 8) + 8) % 8;
     const counts = new Array(8).fill(0);
@@ -95,9 +94,8 @@ export default function ClientDialog({
     const patch = {
       name: name.trim(),
       serviceTags,
-      services: services.trim(),
-      strategist: strategist.trim() || null,
-      basecampUrl: basecampUrl.trim() || null,
+      notes: notes.trim(),
+      link: link.trim() || null,
       colorKey,
       color: customColor,
     };
@@ -258,31 +256,21 @@ export default function ClientDialog({
             </div>
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Account strategist">
-              <input
-                value={strategist}
-                onChange={(e) => setStrategist(e.target.value)}
-                placeholder="Courtney"
-                className={input}
-              />
-            </Field>
-            <Field label="Basecamp URL">
-              <input
-                value={basecampUrl}
-                onChange={(e) => setBasecampUrl(e.target.value)}
-                placeholder="https://app.basecamp.com/..."
-                className={input}
-              />
-            </Field>
-          </div>
+          <Field label="Project link">
+            <input
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="https://... (Basecamp, Teamwork, ClickUp, Notion, ...)"
+              className={input}
+            />
+          </Field>
 
-          <Field label="Deliverables">
+          <Field label="Notes">
             <textarea
-              value={services}
-              onChange={(e) => setServices(e.target.value)}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              placeholder="Enhanced Local SEO, 2 blogs per month, monthly strategy call..."
+              placeholder="Deliverables, additional links, anything. Links become clickable."
               className={`${input} resize-none leading-relaxed`}
             />
           </Field>

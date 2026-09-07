@@ -70,8 +70,8 @@ export function readLegacyLocalData(): { clients: Client[]; blocks: Block[] } | 
 // row <-> model mapping
 // ---------------------------------------------------------------------------
 type ClientRow = {
-  id: string; name: string; service_tags: string[] | null; services: string;
-  strategist: string | null; basecamp_url: string | null;
+  id: string; name: string; service_tags: string[] | null; notes: string;
+  link: string | null;
   color_key: number; color: string | null; archived: boolean;
 };
 
@@ -98,9 +98,13 @@ function normalizeClient(input: unknown): Client {
     id: String(c.id ?? uid("cl")),
     name: String(c.name ?? ""),
     serviceTags: cleanTags(c.serviceTags),
-    services: String(c.services ?? ""),
-    strategist: typeof c.strategist === "string" ? c.strategist : null,
-    basecampUrl: typeof c.basecampUrl === "string" ? c.basecampUrl : null,
+    // Accept the old `services` key from data saved before the rename.
+    notes: String(c.notes ?? c.services ?? ""),
+    link: typeof c.link === "string"
+      ? c.link
+      : typeof c.basecampUrl === "string"
+        ? c.basecampUrl
+        : null,
     colorKey: Number.isFinite(c.colorKey) ? Number(c.colorKey) : 0,
     color: typeof c.color === "string" ? c.color : null,
     archived: Boolean(c.archived),
@@ -117,9 +121,8 @@ const toClient = (r: ClientRow): Client => ({
   id: r.id,
   name: r.name,
   serviceTags: cleanTags(r.service_tags),
-  services: r.services ?? "",
-  strategist: r.strategist,
-  basecampUrl: r.basecamp_url,
+  notes: r.notes ?? "",
+  link: r.link ?? null,
   colorKey: Number(r.color_key),
   color: r.color ?? null,
   archived: Boolean(r.archived),
@@ -129,9 +132,8 @@ const fromClient = (c: Client) => ({
   id: c.id,
   name: c.name,
   service_tags: c.serviceTags,
-  services: c.services,
-  strategist: c.strategist,
-  basecamp_url: c.basecampUrl,
+  notes: c.notes,
+  link: c.link,
   color_key: c.colorKey,
   color: c.color,
   archived: c.archived,
@@ -390,9 +392,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         id: uid("cl"),
         name: input.name,
         serviceTags: input.serviceTags ?? [],
-        services: input.services ?? "",
-        strategist: input.strategist ?? null,
-        basecampUrl: input.basecampUrl ?? null,
+        notes: input.notes ?? "",
+        link: input.link ?? null,
         colorKey: input.colorKey ?? nextColorKey(clients),
         color: input.color ?? null,
         archived: false,
@@ -425,9 +426,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const row: Record<string, unknown> = {};
       if (patch.name !== undefined) row.name = patch.name;
       if (patch.serviceTags !== undefined) row.service_tags = patch.serviceTags;
-      if (patch.services !== undefined) row.services = patch.services;
-      if (patch.strategist !== undefined) row.strategist = patch.strategist;
-      if (patch.basecampUrl !== undefined) row.basecamp_url = patch.basecampUrl;
+      if (patch.notes !== undefined) row.notes = patch.notes;
+      if (patch.link !== undefined) row.link = patch.link;
       if (patch.colorKey !== undefined) row.color_key = patch.colorKey;
       if (patch.color !== undefined) row.color = patch.color;
       if (patch.archived !== undefined) row.archived = patch.archived;

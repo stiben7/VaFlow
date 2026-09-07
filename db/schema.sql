@@ -21,9 +21,10 @@ CREATE TABLE IF NOT EXISTS public.clients (
   -- Availed services, e.g. '{Website,Automation,GHL}'. A set, not a tier.
   -- Five ship as defaults; users may add their own labels, so no allow-list.
   service_tags  TEXT[]      NOT NULL DEFAULT '{}',
-  services      TEXT        NOT NULL DEFAULT '',
-  strategist    TEXT,
-  basecamp_url  TEXT,
+  -- Free text: deliverables, extra links, anything.
+  notes         TEXT        NOT NULL DEFAULT '',
+  -- The client's project / workspace URL (Basecamp, Teamwork, ClickUp, ...).
+  link          TEXT,
   color_key     INTEGER     NOT NULL DEFAULT 0,
   -- Optional custom hex ('#rrggbb'); overrides color_key when set.
   color         TEXT,
@@ -43,6 +44,14 @@ ALTER TABLE public.clients DROP CONSTRAINT IF EXISTS clients_tier_chk;
 ALTER TABLE public.clients DROP COLUMN IF EXISTS tier;
 -- The service-tag allow-list is gone: users can add their own labels.
 ALTER TABLE public.clients DROP CONSTRAINT IF EXISTS clients_service_tags_chk;
+-- basecamp_url -> link (tool-agnostic); services -> notes; strategist dropped.
+DO $$ BEGIN
+  ALTER TABLE public.clients RENAME COLUMN basecamp_url TO link;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE public.clients RENAME COLUMN services TO notes;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+ALTER TABLE public.clients DROP COLUMN IF EXISTS strategist;
 DO $$ BEGIN
   ALTER TABLE public.clients ADD CONSTRAINT clients_color_chk
     CHECK (color IS NULL OR color ~ '^#[0-9a-fA-F]{6}$');

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/store";
 import { accentFor, SERVICE_BADGE_OFF, SERVICE_BADGE_ON } from "@/lib/colors";
+import { linkify } from "@/lib/linkify";
 import type { Client, ServiceTag } from "@/lib/types";
 import ClientDialog from "@/components/ClientDialog";
 import {
@@ -39,9 +40,8 @@ export default function ClientsPage() {
         (c) =>
           !needle ||
           c.name.toLowerCase().includes(needle) ||
-          c.services.toLowerCase().includes(needle) ||
-          c.serviceTags.join(" ").toLowerCase().includes(needle) ||
-          (c.strategist ?? "").toLowerCase().includes(needle)
+          c.notes.toLowerCase().includes(needle) ||
+          c.serviceTags.join(" ").toLowerCase().includes(needle)
       )
       .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -81,7 +81,7 @@ export default function ClientsPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, deliverables, strategist"
+            placeholder="Search name, notes, services"
             className="w-full rounded-md border border-edge bg-canvas py-[7px] pl-8 pr-3 text-[12.5px] text-ink outline-none placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/15"
           />
         </div>
@@ -259,11 +259,6 @@ function ClientRow({
                 {t}
               </span>
             ))}
-            {client.strategist && (
-              <span className="text-[11px] text-faint">
-                {client.strategist}
-              </span>
-            )}
             {scheduled > 0 && (
               <span className="flex items-center gap-1 text-[11px] text-muted">
                 <CalendarIcon className="h-3 w-3" />
@@ -271,20 +266,20 @@ function ClientRow({
               </span>
             )}
           </div>
-          {!open && client.services && (
+          {!open && client.notes && (
             <p className="mt-0.5 truncate text-[11.5px] text-faint">
-              {client.services}
+              {client.notes}
             </p>
           )}
         </button>
 
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          {client.basecampUrl && (
+          {client.link && (
             <a
-              href={client.basecampUrl}
+              href={client.link}
               target="_blank"
               rel="noreferrer"
-              title="Open in Basecamp"
+              title="Open project link"
               className="rounded-md p-1.5 text-faint hover:bg-sunken hover:text-brand"
             >
               <LinkIcon />
@@ -319,10 +314,10 @@ function ClientRow({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[10.5px] font-semibold uppercase tracking-wide text-faint">
-                Deliverables
+                Notes
               </div>
-              <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-muted">
-                {client.services || "Not yet itemised."}
+              <p className="mt-1 max-w-2xl whitespace-pre-wrap text-[12px] leading-relaxed text-muted">
+                {client.notes ? linkify(client.notes) : "Nothing yet."}
               </p>
             </div>
             <button

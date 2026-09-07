@@ -136,7 +136,7 @@ export default function ClientPool({
           !needle ||
           c.name.toLowerCase().includes(needle) ||
           c.serviceTags.join(" ").toLowerCase().includes(needle) ||
-          (c.strategist ?? "").toLowerCase().includes(needle)
+          c.notes.toLowerCase().includes(needle)
       );
   }, [active, q, serviceFilter, unscheduledOnly, bookedCount]);
 
@@ -404,7 +404,7 @@ function PoolCard({
     <li>
       <div
         onPointerDown={onPointerDown}
-        title={client.services || client.name}
+        title={client.notes || client.name}
         style={accent.style}
         className={`no-touch-scroll group relative cursor-grab overflow-hidden rounded-md border bg-canvas pl-2.5 pr-2 py-2 transition-all active:cursor-grabbing ${
           dimmed
@@ -437,11 +437,6 @@ function PoolCard({
                   {t}
                 </span>
               ))}
-              {client.strategist && (
-                <span className="truncate text-[10.5px] text-faint">
-                  {client.strategist}
-                </span>
-              )}
             </div>
           </div>
           {booked > 0 && (

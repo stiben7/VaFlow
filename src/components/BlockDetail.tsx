@@ -119,11 +119,6 @@ export default function BlockDetail({
                   {t}
                 </span>
               ))}
-              {client.strategist && (
-                <span className="text-[10.5px] text-faint">
-                  {client.strategist}
-                </span>
-              )}
             </div>
           </div>
           <div className="-mr-1 -mt-0.5 flex shrink-0 items-center">
@@ -222,15 +217,15 @@ export default function BlockDetail({
 
       {/* Actions */}
       <div className="flex items-center gap-2 border-t border-edge bg-panel px-4 py-2.5">
-        {client.basecampUrl && (
+        {client.link && (
           <a
-            href={client.basecampUrl}
+            href={client.link}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium text-brand hover:bg-brand-soft"
           >
             <LinkIcon className="h-3.5 w-3.5" />
-            Basecamp
+            Open link
           </a>
         )}
         <button
