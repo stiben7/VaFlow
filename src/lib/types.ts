@@ -50,6 +50,18 @@ export type Block = {
   note: string | null;
 };
 
+/**
+ * Per-user settings, kept in the `profiles` table (cloud mode only).
+ * `timezone` is the browser's IANA name, captured on load; the reminder job
+ * needs it to know when "one hour before 9am" actually is.
+ */
+export type Profile = {
+  timezone: string | null;
+  remindersEnabled: boolean;
+  /** Local hour (0-23) the evening "tomorrow" digest goes out. */
+  digestHour: number;
+};
+
 export type NewClient = Omit<
   Client,
   "id" | "colorKey" | "color" | "archived"
