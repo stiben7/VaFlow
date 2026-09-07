@@ -159,13 +159,17 @@ type ProfileRow = {
   timezone: string | null;
   reminders_enabled: boolean;
   digest_hour: number;
+  avatar_url: string | null;
 };
 
 const toProfile = (r: ProfileRow): Profile => ({
   timezone: r.timezone ?? null,
   remindersEnabled: Boolean(r.reminders_enabled),
   digestHour: Number(r.digest_hour),
+  avatarUrl: r.avatar_url ?? null,
 });
+
+const PROFILE_COLS = "timezone, reminders_enabled, digest_hour, avatar_url";
 
 /** Next free accent, so colours spread out instead of clumping. */
 function nextColorKey(clients: Client[]): number {
@@ -200,6 +204,8 @@ type Store = {
   removeBlock: (id: string) => Promise<void>;
 
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<void>;
+  removeAvatar: () => Promise<void>;
 
   clientById: (id: string) => Client | undefined;
   /** Default service labels plus every custom one in use, defaults first. */
@@ -296,7 +302,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               { user_id: userData.user!.id, timezone: tz },
               { onConflict: "user_id" }
             )
-            .select("timezone, reminders_enabled, digest_hour")
+            .select(PROFILE_COLS)
             .single();
           if (!cancelled && data) setProfile(toProfile(data as ProfileRow));
         } catch {
@@ -439,6 +445,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (patch.remindersEnabled !== undefined)
         row.reminders_enabled = patch.remindersEnabled;
       if (patch.digestHour !== undefined) row.digest_hour = patch.digestHour;
+      if (patch.avatarUrl !== undefined) row.avatar_url = patch.avatarUrl;
       if (Object.keys(row).length === 0) return;
       const { error: err } = await getSupabase()!
         .from("profiles").update(row).eq("user_id", uid);
@@ -446,6 +453,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     },
     [user]
   );
+
+  /** Upload a new avatar to storage and point the profile at it. */
+  const uploadAvatar = useCallback(
+    async (file: File): Promise<void> => {
+      const supabase = getSupabase();
+      const uid = user?.id;
+      if (!supabase || !uid || modeRef.current !== "cloud") return;
+      const ext = (file.name.split(".").pop() || "png").toLowerCase();
+      const path = `${uid}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) {
+        setError(upErr.message);
+        throw new Error(upErr.message);
+      }
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = `${data.publicUrl}?v=${Date.now()}`;
+      await updateProfile({ avatarUrl: url });
+    },
+    [user, updateProfile]
+  );
+
+  const removeAvatar = useCallback(async (): Promise<void> => {
+    await updateProfile({ avatarUrl: null });
+  }, [updateProfile]);
 
   // ---- bulk --------------------------------------------------------------
   const importData = useCallback(
@@ -505,14 +538,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clients, blocks, ready, mode, user, profile, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
-      updateProfile,
+      updateProfile, uploadAvatar, removeAvatar,
       clientById, serviceTags, importData,
     }),
     [
       clients, blocks, ready, mode, user, profile, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
-      updateProfile,
+      updateProfile, uploadAvatar, removeAvatar,
       clientById, serviceTags, importData,
     ]
   );

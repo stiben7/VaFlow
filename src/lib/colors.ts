@@ -149,6 +149,6 @@ export const PRIORITY_META: Record<
   { label: string; dot: string; flag: string }
 > = {
   high: { label: "High", dot: "bg-red-500", flag: "text-red-500" },
-  normal: { label: "Medium", dot: "bg-orange-500", flag: "text-orange-500" },
+  normal: { label: "Medium", dot: "bg-yellow-400", flag: "text-yellow-500" },
   low: { label: "Low", dot: "bg-green-500", flag: "text-green-500" },
 };

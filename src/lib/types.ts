@@ -79,6 +79,8 @@ export type Profile = {
   remindersEnabled: boolean;
   /** Local hour (0-23) the evening "tomorrow" digest goes out. */
   digestHour: number;
+  /** Public URL of the uploaded avatar, or null for initials. */
+  avatarUrl: string | null;
 };
 
 export type NewClient = Omit<

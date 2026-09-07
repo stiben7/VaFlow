@@ -12,11 +12,12 @@ import {
   UsersIcon,
   SidebarIcon,
   InboxIcon,
-  LogoutIcon,
+  SettingsIcon,
   SunIcon,
   MoonIcon,
   MonitorIcon,
 } from "./Icons";
+import SettingsDialog from "./SettingsDialog";
 
 const NAV = [
   { href: "/my-week", label: "My Week", Icon: CalendarIcon },
@@ -34,6 +35,29 @@ function initialsFor(email: string | null | undefined): string {
   return local.slice(0, 2).toUpperCase() || "??";
 }
 
+function Avatar({
+  src,
+  initials,
+  className,
+}: {
+  src: string | null;
+  initials: string;
+  className: string;
+}) {
+  return (
+    <span
+      className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-brand font-semibold text-white ${className}`}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className="h-full w-full object-cover" />
+      ) : (
+        initials
+      )}
+    </span>
+  );
+}
+
 const THEME_OPTIONS: { value: ThemeChoice; label: string; Icon: typeof SunIcon }[] = [
   { value: "light", label: "Light", Icon: SunIcon },
   { value: "system", label: "System", Icon: MonitorIcon },
@@ -42,14 +66,15 @@ const THEME_OPTIONS: { value: ThemeChoice; label: string; Icon: typeof SunIcon }
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { clients, blocks, ready, user, mode, profile, updateProfile } =
-    useStore();
+  const { clients, blocks, ready, user, mode, profile } = useStore();
   const { theme, setTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const email = user?.email ?? null;
   // Guest: no account, but this deployment could give them one.
   const isGuest = mode === "local" && isSupabaseConfigured;
+  const avatar = profile?.avatarUrl ?? null;
   const initials = mode === "cloud" ? initialsFor(email) : isGuest ? "GU" : "LO";
   const displayName =
     mode === "cloud" ? (email ?? "Signed in") : isGuest ? "Guest" : "Local mode";
@@ -68,6 +93,7 @@ export default function Sidebar() {
 
   if (collapsed) {
     return (
+      <>
       <aside className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-edge bg-panel py-3">
         <button
           onClick={() => setCollapsed(false)}
@@ -115,17 +141,36 @@ export default function Sidebar() {
             <MonitorIcon />
           )}
         </button>
-        <div
-          title={displayName}
-          className="mt-1 grid h-8 w-8 place-items-center rounded-full bg-brand text-[11px] font-semibold text-white"
-        >
-          {initials}
-        </div>
+        {mode === "cloud" ? (
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+            aria-label="Settings"
+            className="mt-1"
+          >
+            <Avatar
+              src={avatar}
+              initials={initials}
+              className="h-8 w-8 text-[11px]"
+            />
+          </button>
+        ) : (
+          <div title={displayName} className="mt-1">
+            <Avatar
+              src={null}
+              initials={initials}
+              className="h-8 w-8 text-[11px]"
+            />
+          </div>
+        )}
       </aside>
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      </>
     );
   }
 
   return (
+    <>
     <aside className="flex w-60 shrink-0 flex-col border-r border-edge bg-panel">
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
@@ -240,60 +285,58 @@ export default function Sidebar() {
       </div>
 
       {/* Identity */}
-      <div className="m-2.5 rounded-lg border border-edge bg-canvas p-2.5">
-        <div className="flex items-center gap-2.5">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-semibold text-white">
-            {initials}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[12.5px] font-medium text-ink" title={displayName}>
-              {displayName}
-            </div>
-            <div className="truncate text-[11px] text-faint">{displaySub}</div>
-          </div>
-        </div>
-        {mode === "cloud" && profile && (
-          <label className="mt-2 flex cursor-pointer items-start gap-2 rounded-md border border-edge px-2 py-1.5">
-            <input
-              type="checkbox"
-              checked={profile.remindersEnabled}
-              onChange={(e) =>
-                void updateProfile({ remindersEnabled: e.target.checked })
-              }
-              className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-brand)]"
+      <div className="m-2.5 flex items-center gap-2.5 rounded-lg border border-edge bg-canvas p-2">
+        {mode === "cloud" ? (
+          <>
+            <Avatar
+              src={avatar}
+              initials={initials}
+              className="h-9 w-9 text-[12px]"
             />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[11.5px] font-medium text-ink">
-                Email reminders
-              </span>
-              <span className="block text-[10.5px] leading-snug text-faint">
-                {profile.timezone
-                  ? `Tomorrow's clients each evening, and today's an hour before the first. Timezone: ${profile.timezone}`
-                  : "Open the app on the device you use most so we can detect your timezone."}
-              </span>
-            </span>
-          </label>
-        )}
-        {mode === "cloud" && (
-          <form action="/auth/signout" method="post">
+            <div className="min-w-0 flex-1">
+              <div
+                className="truncate text-[12.5px] font-medium text-ink"
+                title={displayName}
+              >
+                {displayName}
+              </div>
+              <div className="truncate text-[11px] text-faint">{displaySub}</div>
+            </div>
             <button
-              type="submit"
-              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-edge py-1.5 text-[11.5px] font-medium text-muted transition-colors hover:bg-sunken hover:text-ink"
+              onClick={() => setSettingsOpen(true)}
+              title="Settings"
+              aria-label="Settings"
+              className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-sunken hover:text-ink"
             >
-              <LogoutIcon className="h-3.5 w-3.5" />
-              Sign out
+              <SettingsIcon />
             </button>
-          </form>
-        )}
-        {isGuest && (
-          <Link
-            href="/login"
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-brand/40 bg-brand-soft py-1.5 text-[11.5px] font-medium text-brand-ink transition-colors hover:bg-brand/10"
-          >
-            Sign in to save
-          </Link>
+          </>
+        ) : (
+          <>
+            <Avatar
+              src={null}
+              initials={initials}
+              className="h-9 w-9 text-[12px]"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12.5px] font-medium text-ink">
+                {displayName}
+              </div>
+              <div className="truncate text-[11px] text-faint">{displaySub}</div>
+            </div>
+            {isGuest && (
+              <Link
+                href="/login"
+                className="shrink-0 rounded-md border border-brand/40 bg-brand-soft px-2 py-1 text-[11px] font-medium text-brand-ink transition-colors hover:bg-brand/10"
+              >
+                Sign in
+              </Link>
+            )}
+          </>
         )}
       </div>
     </aside>
+    {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+    </>
   );
 }
