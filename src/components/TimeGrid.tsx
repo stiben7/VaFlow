@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { useDrag, type Hit } from "@/lib/drag";
 import { accentFor, PRIORITY_META } from "@/lib/colors";
 import { layoutDay, totalMinutes } from "@/lib/layout";
+import { isTextEntryTarget } from "@/lib/dom";
 import type { Block } from "@/lib/types";
 import {
   DAY_LABELS,
@@ -243,8 +244,7 @@ export default function TimeGrid({ days }: { days: Date[] }) {
   // ---- keyboard shortcuts (Ctrl+D / Del / Ctrl+C / Ctrl+V) ---------------
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
-      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      if (isTextEntryTarget(e.target)) return;
 
       const ctrl = e.ctrlKey || e.metaKey;
 
