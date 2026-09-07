@@ -175,6 +175,7 @@ export default function ClientsPage() {
 
       {editingClient && (
         <ClientDialog
+          key={editingClient.id}
           client={editingClient}
           onClose={() => setEditId(null)}
         />

@@ -15,6 +15,7 @@ import {
   toKey,
 } from "@/lib/date";
 import BlockDetail from "./BlockDetail";
+import { NoteIcon } from "./Icons";
 
 /** Chips shown per cell before collapsing into a "+N more" row. */
 const MAX_VISIBLE = 3;
@@ -142,7 +143,9 @@ export default function MonthGrid({
                             setOpenId((cur) => (cur === b.id ? null : b.id))
                         )
                       }
-                      title={`${c.name} at ${formatTime(b.startMin)}`}
+                      title={`${c.name} at ${formatTime(b.startMin)}${
+                        b.note ? `\n${b.note}` : ""
+                      }`}
                       style={accent.style}
                       className={`no-touch-scroll flex cursor-grab items-center gap-1 overflow-hidden rounded border px-1 py-[2px] active:cursor-grabbing ${accent.chip} ${
                         movingId === b.id ? "opacity-30" : "hover:brightness-95"
@@ -156,6 +159,12 @@ export default function MonthGrid({
                       >
                         {c.name}
                       </span>
+                      {b.note && (
+                        <NoteIcon
+                          aria-label="Has a note"
+                          className={`ml-auto h-2.5 w-2.5 shrink-0 ${accent.text} opacity-55`}
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -183,7 +192,7 @@ export default function MonthGrid({
       </div>
 
       {openId && (
-        <BlockDetail blockId={openId} onClose={() => setOpenId(null)} />
+        <BlockDetail key={openId} blockId={openId} onClose={() => setOpenId(null)} />
       )}
     </div>
   );
