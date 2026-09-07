@@ -208,7 +208,7 @@ function LoginForm() {
                         ? "Create account"
                         : "Sign in"}
                   </span>
-                  <EnterDoorIcon className="h-6 w-6" />
+                  <EnterDoorIcon className="h-4 w-6" />
                 </button>
               </form>
 
