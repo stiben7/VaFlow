@@ -13,6 +13,8 @@ import type { User } from "@supabase/supabase-js";
 import type {
   Block,
   Client,
+  EmailConfig,
+  EmailConfigInput,
   NewBlock,
   NewClient,
   Profile,
@@ -171,6 +173,37 @@ const toProfile = (r: ProfileRow): Profile => ({
 
 const PROFILE_COLS = "timezone, reminders_enabled, digest_hour, avatar_url";
 
+/** The empty shape used before load and after a config is removed. */
+const EMPTY_EMAIL_CONFIG: EmailConfig = {
+  configured: false,
+  provider: null,
+  fromEmail: null,
+  fromName: null,
+  smtpHost: null,
+  smtpPort: null,
+  smtpUser: null,
+  smtpSecure: true,
+  verifiedAt: null,
+  lastError: null,
+};
+
+/** Coerce the `email-config` Edge Function's JSON into `EmailConfig`. */
+function toEmailConfig(d: Record<string, unknown> | null): EmailConfig {
+  if (!d || !d.configured) return EMPTY_EMAIL_CONFIG;
+  return {
+    configured: true,
+    provider: (d.provider as EmailConfig["provider"]) ?? null,
+    fromEmail: (d.fromEmail as string) ?? null,
+    fromName: (d.fromName as string) ?? null,
+    smtpHost: (d.smtpHost as string) ?? null,
+    smtpPort: typeof d.smtpPort === "number" ? d.smtpPort : null,
+    smtpUser: (d.smtpUser as string) ?? null,
+    smtpSecure: d.smtpSecure !== false,
+    verifiedAt: (d.verifiedAt as string) ?? null,
+    lastError: (d.lastError as string) ?? null,
+  };
+}
+
 /** Next free accent, so colours spread out instead of clumping. */
 function nextColorKey(clients: Client[]): number {
   const counts = new Array(8).fill(0);
@@ -193,6 +226,8 @@ type Store = {
   user: User | null;
   /** Per-user settings. Cloud mode only; null until loaded (or in local mode). */
   profile: Profile | null;
+  /** The user's own email provider. Cloud mode only; null until loaded. */
+  emailConfig: EmailConfig | null;
   error: string | null;
 
   addClient: (input: NewClient) => Promise<Client>;
@@ -206,6 +241,12 @@ type Store = {
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
   removeAvatar: () => Promise<void>;
+
+  /** Save the email provider + send a test. Returns the test outcome. */
+  saveEmailConfig: (
+    input: EmailConfigInput
+  ) => Promise<{ verified: boolean; error?: string }>;
+  removeEmailConfig: () => Promise<void>;
 
   clientById: (id: string) => Client | undefined;
   /** Default service labels plus every custom one in use, defaults first. */
@@ -228,6 +269,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [emailConfig, setEmailConfig] = useState<EmailConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Resolved during boot: "cloud" once a signed-in user is confirmed,
@@ -308,6 +350,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         } catch {
           // A missing profiles table or a transient failure just means no
           // reminder settings this session; the feature stays dormant.
+        }
+      })();
+
+      // Load the user's email provider config (non-secret view). Non-critical.
+      void (async () => {
+        try {
+          const { data } = await supabase.functions.invoke("email-config", {
+            method: "GET",
+          });
+          if (!cancelled) {
+            setEmailConfig(toEmailConfig(data as Record<string, unknown> | null));
+          }
+        } catch {
+          if (!cancelled) setEmailConfig(EMPTY_EMAIL_CONFIG);
         }
       })();
     }
@@ -480,6 +536,67 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await updateProfile({ avatarUrl: null });
   }, [updateProfile]);
 
+  // ---- email provider config -----------------------------------------
+  const saveEmailConfig = useCallback(
+    async (
+      input: EmailConfigInput
+    ): Promise<{ verified: boolean; error?: string }> => {
+      const supabase = getSupabase();
+      if (!supabase || modeRef.current !== "cloud") {
+        return { verified: false, error: "Not signed in." };
+      }
+      const { data, error: fnErr } = await supabase.functions.invoke(
+        "email-config",
+        { method: "POST", body: input }
+      );
+      if (fnErr) {
+        // supabase-js wraps a non-2xx as FunctionsHttpError; the useful
+        // message ("smtp.host is not allowed", "server key not configured",
+        // ...) is in the JSON body on `.context`.
+        let msg = fnErr.message;
+        try {
+          const ctx = (fnErr as { context?: Response }).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            if (body?.error) msg = String(body.error);
+          }
+        } catch {
+          /* keep the generic message */
+        }
+        return { verified: false, error: msg };
+      }
+      const d = data as Record<string, unknown>;
+      if (d.error && !d.configured) {
+        return { verified: false, error: String(d.error) };
+      }
+      // Refresh the non-secret view.
+      try {
+        const { data: fresh } = await supabase.functions.invoke("email-config", {
+          method: "GET",
+        });
+        setEmailConfig(toEmailConfig(fresh as Record<string, unknown> | null));
+      } catch {
+        /* keep whatever we had */
+      }
+      return {
+        verified: Boolean(d.verified),
+        error: d.error ? String(d.error) : undefined,
+      };
+    },
+    []
+  );
+
+  const removeEmailConfig = useCallback(async (): Promise<void> => {
+    const supabase = getSupabase();
+    if (!supabase || modeRef.current !== "cloud") return;
+    try {
+      await supabase.functions.invoke("email-config", { method: "DELETE" });
+    } catch {
+      /* ignore */
+    }
+    setEmailConfig(EMPTY_EMAIL_CONFIG);
+  }, []);
+
   // ---- bulk --------------------------------------------------------------
   const importData = useCallback(
     async (incoming: { clients: Client[]; blocks: Block[] }): Promise<MergePlan> => {
@@ -535,17 +652,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      clients, blocks, ready, mode, user, profile, error,
+      clients, blocks, ready, mode, user, profile, emailConfig, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile, uploadAvatar, removeAvatar,
+      saveEmailConfig, removeEmailConfig,
       clientById, serviceTags, importData,
     }),
     [
-      clients, blocks, ready, mode, user, profile, error,
+      clients, blocks, ready, mode, user, profile, emailConfig, error,
       addClient, editClient, removeClient,
       addBlock, editBlock, removeBlock,
       updateProfile, uploadAvatar, removeAvatar,
+      saveEmailConfig, removeEmailConfig,
       clientById, serviceTags, importData,
     ]
   );
