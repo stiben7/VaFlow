@@ -99,6 +99,35 @@ export const ACCENTS: Accent[] = [
   },
 ];
 
+/**
+ * A real hex per accent slot, in the same order as `ACCENTS`. Charts need an
+ * actual colour value (Recharts writes it straight into an SVG `fill`), where
+ * the rest of the UI only ever needs the Tailwind class strings above.
+ */
+export const ACCENT_HEX = [
+  "#f43f5e", // rose
+  "#f59e0b", // amber
+  "#10b981", // emerald
+  "#0ea5e9", // sky
+  "#8b5cf6", // violet
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#d946ef", // fuchsia
+];
+
+/** The chart fill for a client -- its custom hex if set, else its accent slot. */
+export function chartColorFor(
+  input: number | { colorKey: number; color?: string | null }
+): string {
+  if (typeof input === "number") {
+    return ACCENT_HEX[((input % ACCENT_HEX.length) + ACCENT_HEX.length) % ACCENT_HEX.length];
+  }
+  if (input.color && HEX_RE.test(input.color)) return input.color;
+  return ACCENT_HEX[
+    ((input.colorKey % ACCENT_HEX.length) + ACCENT_HEX.length) % ACCENT_HEX.length
+  ];
+}
+
 const CUSTOM_ACCENT: Accent = {
   chip: "accent-custom",
   bar: "accent-custom-bar",
