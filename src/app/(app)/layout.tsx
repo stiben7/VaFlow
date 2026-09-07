@@ -2,6 +2,7 @@ import { DataProvider } from "@/lib/store";
 import { DragProvider } from "@/lib/drag";
 import { ThemeProvider } from "@/lib/theme";
 import Sidebar from "@/components/Sidebar";
+import NotesPanel from "@/components/NotesPanel";
 
 /**
  * The signed-in shell. Middleware has already guaranteed a session by the time
@@ -22,6 +23,7 @@ export default function AppLayout({
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {children}
             </main>
+            <NotesPanel />
           </div>
         </DragProvider>
       </DataProvider>

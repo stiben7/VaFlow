@@ -170,3 +170,57 @@ body {
 .accent-custom-ring {
   --tw-ring-color: var(--accent);
 }
+
+/* ---------------------------------------------------------------------------
+   Notes panel rich-text content.
+
+   Tailwind's preflight strips heading / list styling, so the contentEditable
+   region needs its own rules for what execCommand produces.
+   --------------------------------------------------------------------------- */
+.notes-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-faint);
+  pointer-events: none;
+}
+.notes-content h1 {
+  font-size: 1.35em;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0.4em 0 0.2em;
+}
+.notes-content h2 {
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0.35em 0 0.15em;
+}
+.notes-content h3 {
+  font-size: 1.03em;
+  font-weight: 600;
+  margin: 0.3em 0 0.1em;
+}
+.notes-content p,
+.notes-content div {
+  margin: 0.15em 0;
+}
+.notes-content ul,
+.notes-content ol {
+  margin: 0.2em 0;
+  padding-left: 1.4em;
+}
+.notes-content ul {
+  list-style: disc;
+}
+.notes-content ol {
+  list-style: decimal;
+}
+.notes-content li {
+  margin: 0.1em 0;
+}
+.notes-content a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+.notes-content:focus {
+  outline: none;
+}
